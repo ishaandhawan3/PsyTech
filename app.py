@@ -187,12 +187,12 @@ def main():
             st.session_state['submitted_diagnoses'] = child_diagnoses
             st.success(f"Diagnoses submitted: {child_diagnoses}")
 
-    # Optionally, display all submitted info
-    st.markdown("### Submitted Information")
-    st.write("Age:", st.session_state.get('submitted_age', 'Not submitted'))
-    st.write("Strengths:", st.session_state.get('submitted_strengths', 'Not submitted'))
-    st.write("Challenges:", st.session_state.get('submitted_challenges', 'Not submitted'))
-    st.write("Diagnoses:", st.session_state.get('submitted_diagnoses', 'Not submitted'))
+    # # Optionally, display all submitted info
+    # st.markdown("### Submitted Information")
+    # st.write("Age:", st.session_state.get('submitted_age', 'Not submitted'))
+    # st.write("Strengths:", st.session_state.get('submitted_strengths', 'Not submitted'))
+    # st.write("Challenges:", st.session_state.get('submitted_challenges', 'Not submitted'))
+    # st.write("Diagnoses:", st.session_state.get('submitted_diagnoses', 'Not submitted'))
 
     # Use session state to persist recommendations and feedback
     if 'recs' not in st.session_state:
