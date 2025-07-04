@@ -15,9 +15,14 @@ except ImportError:
 @st.cache_data
 def load_activities():
     try:
+        activities_df = activities_df[activities_df['Activity Name'].notna()]
+        activities_df = activities_df[activities_df['Activity Name'].astype(str).str.strip() != '']
         return pd.read_csv("activities.csv", encoding="utf-8")
     except UnicodeDecodeError:
+        activities_df = activities_df[activities_df['Activity Name'].notna()]
+        activities_df = activities_df[activities_df['Activity Name'].astype(str).str.strip() != '']
         return pd.read_csv("activities.csv", encoding="latin1")
+
 
 # Generate AI-powered questions (Gemini or fallback)
 def generate_questions(child_profile):
@@ -72,47 +77,47 @@ def generate_activity_details(activity_row):
     meta_str = "\n".join(metadata)
     if genai:
         prompt = f"""
-You are an expert in child development and therapy. For the following activity, generate a detailed, structured report for parents of children with special needs (including but not limited to autism, ADHD, learning disabilities, and physical challenges).
+                You are an expert in child development and therapy. For the following activity, generate a detailed, structured report for parents of children with special needs (including but not limited to autism, ADHD, learning disabilities, and physical challenges).
 
-Activity Name: {activity_name}
+                Activity Name: {activity_name}
 
-Activity Metadata:
-{meta_str}
+                Activity Metadata:
+                {meta_str}
 
-For this activity, provide:
-1. Activity Name
-2. Activity Metadata (summarize focus area, suitable age group, and key developmental skills or goals)
-3. Prerequisite (list materials, skills, or setup needed)
-4. Safety Instructions (clear, concise, and age-appropriate)
-5. How to Perform Activity (step-by-step instructions)
-6. Post Activity Feedback (questions for parent/child to reflect on the experience)
-7. Analytics Report (what to track, how to measure progress or engagement)
+                For this activity, provide:
+                1. Activity Name
+                2. Activity Metadata (summarize focus area, suitable age group, and key developmental skills or goals)
+                3. Prerequisite (list materials, skills, or setup needed)
+                4. Safety Instructions (clear, concise, and age-appropriate)
+                5. How to Perform Activity (step-by-step instructions)
+                6. Post Activity Feedback (questions for parent/child to reflect on the experience)
+                7. Analytics Report (what to track, how to measure progress or engagement)
 
-Format the output for this activity as:
+                Format the output for this activity as:
 
----
-**Activity Name:** [Name]
+                ---
+                **Activity Name:** [Name]
 
-**Activity Metadata:**  
-[Metadata]
+                **Activity Metadata:**  
+                [Metadata]
 
-**Prerequisite:**  
-[List]
+                **Prerequisite:**  
+                [List]
 
-**Safety Instructions:**  
-[List]
+                **Safety Instructions:**  
+                [List]
 
-**How to Perform Activity:**  
-[Step-by-step instructions]
+                **How to Perform Activity:**  
+                [Step-by-step instructions]
 
-**Post Activity Feedback:**  
-[List of questions]
+                **Post Activity Feedback:**  
+                [List of questions]
 
-**Analytics Report:**  
-[What to track, how to measure progress]
+                **Analytics Report:**  
+                [What to track, how to measure progress]
 
----
-"""
+                ---
+                """
         response = genai.Client().models.generate_content(
             model="gemini-2.5-flash",
             contents=prompt
@@ -121,28 +126,28 @@ Format the output for this activity as:
     else:
         # Fallback: simple template using available data
         return f"""
----
-**Activity Name:** {activity_name}
+                ---
+                **Activity Name:** {activity_name}
 
-**Activity Metadata:**  
-{meta_str}
+                **Activity Metadata:**  
+                {meta_str}
 
-**Prerequisite:**  
-See activity instructions or materials needed.
+                **Prerequisite:**  
+                See activity instructions or materials needed.
 
-**Safety Instructions:**  
-Adult supervision recommended. Ensure safe environment.
+                **Safety Instructions:**  
+                Adult supervision recommended. Ensure safe environment.
 
-**How to Perform Activity:**  
-See instructions in activity database.
+                **How to Perform Activity:**  
+                See instructions in activity database.
 
-**Post Activity Feedback:**  
-How did your child respond? What went well? What was challenging?
+                **Post Activity Feedback:**  
+                How did your child respond? What went well? What was challenging?
 
-**Analytics Report:**  
-Track engagement, skill improvement, and parent/child feedback over time.
----
-"""
+                **Analytics Report:**  
+                Track engagement, skill improvement, and parent/child feedback over time.
+                ---
+                """
 
 # Main Streamlit app
 def main():
@@ -160,8 +165,8 @@ def main():
             ans = st.text_input(q, key=f"q_{i}")
             answers.append(ans)
         if st.button("Get Recommendations"):
-            activities_df = load_activities()
             recs = recommend_activities(answers, activities_df)
+            st.session_state['recs'] = recs  # Store in session state
             st.markdown("## Recommended Activities")
             for _, row in recs.iterrows():
                 details = generate_activity_details(row)
