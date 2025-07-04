@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 
-# If using Gemini, import and set up the API
+# Optional: Gemini integration
 try:
     from google import genai
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -11,21 +11,19 @@ try:
 except ImportError:
     genai = None
 
-# Load activity data
+# Load activity data with encoding fallback
 @st.cache_data
 def load_activities():
     try:
         return pd.read_csv("activities.csv", encoding="utf-8")
     except UnicodeDecodeError:
-        # Try with a more permissive encoding
         return pd.read_csv("activities.csv", encoding="latin1")
-
 
 # Generate AI-powered questions (Gemini or fallback)
 def generate_questions(child_profile):
     if genai:
         prompt = (
-            f"Generate 3 concise, parent-friendly questions to assess a child's needs for activity recommendations. "
+            f"Generate 5 concise, parent-friendly questions to assess a child's needs for activity recommendations. "
             f"Child profile: {child_profile}. Questions should cover strengths, challenges, social, emotional, and physical aspects."
         )
         response = genai.Client().models.generate_content(
@@ -34,7 +32,6 @@ def generate_questions(child_profile):
         )
         return [q.strip("- ").strip() for q in response.text.split("\n") if q.strip()]
     else:
-        # Fallback static questions
         return [
             "What are your child's main strengths?",
             "What challenges does your child face most often?",
@@ -43,7 +40,7 @@ def generate_questions(child_profile):
             "What motivates or excites your child during play or learning?"
         ]
 
-# Recommend activities based on answers and tags
+# Recommend activities based on answers and tags/keywords
 def recommend_activities(answers, activities_df):
     keywords = " ".join(answers).lower()
     mask = (
@@ -57,16 +54,95 @@ def recommend_activities(answers, activities_df):
         return activities_df.sample(3)
     return filtered
 
-# Display full activity details
-def show_activity_details(row):
-    st.subheader(row["Activity Name"])
-    st.markdown(f"**Metadata:** {row.get('Tags', '')}")
-    st.markdown(f"**Helpful For Conditions:** {row.get('Helpful For Conditions', '')}")
-    st.markdown(f"**Prerequisite:** {row.get('Prerequisite', 'See activity instructions or materials needed.')}")
-    st.markdown(f"**Safety Instructions:** {row.get('Safety Instructions', 'Adult supervision recommended. Ensure safe environment.')}")
-    st.markdown(f"**How to Perform Activity:** {row.get('How to Instructions - Manual', 'See instructions in activity database.')}")
-    st.markdown(f"**Post Activity Feedback:** {row.get('Post Activity Feedback', 'How did your child respond? What went well? What was challenging?')}")
-    st.markdown("---")
+# Generate detailed activity info using Gemini
+def generate_activity_details(activity_row):
+    activity_name = activity_row["Activity Name"]
+    metadata = []
+    if pd.notna(activity_row.get("Focus Area(s)", "")):
+        metadata.append(f"Focus Area(s): {activity_row['Focus Area(s)']}")
+    if pd.notna(activity_row.get("Analyze Progress", "")):
+        metadata.append(f"Key Skills/Goals: {activity_row['Analyze Progress']}")
+    if pd.notna(activity_row.get("Illness Attached", "")):
+        metadata.append(f"Helpful For: {activity_row['Illness Attached']}")
+    if pd.notna(activity_row.get("Other Keywords", "")):
+        metadata.append(f"Keywords: {activity_row['Other Keywords']}")
+    if pd.notna(activity_row.get("Parent Description", "")):
+        metadata.append(f"Parent Descriptions: {activity_row['Parent Description']}")
+
+    meta_str = "\n".join(metadata)
+    if genai:
+        prompt = f"""
+You are an expert in child development and therapy. For the following activity, generate a detailed, structured report for parents of children with special needs (including but not limited to autism, ADHD, learning disabilities, and physical challenges).
+
+Activity Name: {activity_name}
+
+Activity Metadata:
+{meta_str}
+
+For this activity, provide:
+1. Activity Name
+2. Activity Metadata (summarize focus area, suitable age group, and key developmental skills or goals)
+3. Prerequisite (list materials, skills, or setup needed)
+4. Safety Instructions (clear, concise, and age-appropriate)
+5. How to Perform Activity (step-by-step instructions)
+6. Post Activity Feedback (questions for parent/child to reflect on the experience)
+7. Analytics Report (what to track, how to measure progress or engagement)
+
+Format the output for this activity as:
+
+---
+**Activity Name:** [Name]
+
+**Activity Metadata:**  
+[Metadata]
+
+**Prerequisite:**  
+[List]
+
+**Safety Instructions:**  
+[List]
+
+**How to Perform Activity:**  
+[Step-by-step instructions]
+
+**Post Activity Feedback:**  
+[List of questions]
+
+**Analytics Report:**  
+[What to track, how to measure progress]
+
+---
+"""
+        response = genai.Client().models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt
+        )
+        return response.text
+    else:
+        # Fallback: simple template using available data
+        return f"""
+---
+**Activity Name:** {activity_name}
+
+**Activity Metadata:**  
+{meta_str}
+
+**Prerequisite:**  
+See activity instructions or materials needed.
+
+**Safety Instructions:**  
+Adult supervision recommended. Ensure safe environment.
+
+**How to Perform Activity:**  
+See instructions in activity database.
+
+**Post Activity Feedback:**  
+How did your child respond? What went well? What was challenging?
+
+**Analytics Report:**  
+Track engagement, skill improvement, and parent/child feedback over time.
+---
+"""
 
 # Main Streamlit app
 def main():
@@ -88,8 +164,8 @@ def main():
             recs = recommend_activities(answers, activities_df)
             st.markdown("## Recommended Activities")
             for _, row in recs.iterrows():
-                show_activity_details(row)
-                # Collect feedback
+                details = generate_activity_details(row)
+                st.markdown(details)
                 feedback = st.text_area(f"Feedback for {row['Activity Name']}:", key=f"fb_{row['Activity Name']}")
                 if st.button(f"Submit Feedback for {row['Activity Name']}", key=f"submit_{row['Activity Name']}"):
                     st.success("Thank you for your feedback!")
