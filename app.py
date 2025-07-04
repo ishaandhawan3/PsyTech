@@ -189,8 +189,10 @@ def main():
             if st.button(f"Submit Feedback for {row['Activity Name']}", key=submit_key):
                 st.session_state['feedback'][row['Activity Name']] = feedback
                 st.success("Thank you for your feedback!")
-        st.markdown("## Analytics Report")
-        st.info("Analytics and progress tracking will appear here as you use more activities and provide feedback.")
+            # Display feedback if it exists
+            if row['Activity Name'] in st.session_state['feedback']:
+                st.markdown(f"**Your Feedback:** {st.session_state['feedback'][row['Activity Name']]}")
+
 
         # Option to clear recommendations and start over
         if st.button("Start Over"):
