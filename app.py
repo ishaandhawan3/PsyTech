@@ -11,18 +11,17 @@ try:
 except ImportError:
     genai = None
 
-# Load activity data with encoding fallback
+# Load activity data with encoding fallback and filter out empty activity names
 @st.cache_data
 def load_activities():
     try:
-        activities_df = activities_df[activities_df['Activity Name'].notna()]
-        activities_df = activities_df[activities_df['Activity Name'].astype(str).str.strip() != '']
-        return pd.read_csv("activities.csv", encoding="utf-8")
+        df = pd.read_csv("activities.csv", encoding="utf-8")
     except UnicodeDecodeError:
-        activities_df = activities_df[activities_df['Activity Name'].notna()]
-        activities_df = activities_df[activities_df['Activity Name'].astype(str).str.strip() != '']
-        return pd.read_csv("activities.csv", encoding="latin1")
-
+        df = pd.read_csv("activities.csv", encoding="latin1")
+    # Remove rows with missing or blank activity names
+    df = df[df['Activity Name'].notna()]
+    df = df[df['Activity Name'].astype(str).str.strip() != '']
+    return df
 
 # Generate AI-powered questions (Gemini or fallback)
 def generate_questions(child_profile):
@@ -77,47 +76,47 @@ def generate_activity_details(activity_row):
     meta_str = "\n".join(metadata)
     if genai:
         prompt = f"""
-                You are an expert in child development and therapy. For the following activity, generate a detailed, structured report for parents of children with special needs (including but not limited to autism, ADHD, learning disabilities, and physical challenges).
+You are an expert in child development and therapy. For the following activity, generate a detailed, structured report for parents of children with special needs (including but not limited to autism, ADHD, learning disabilities, and physical challenges).
 
-                Activity Name: {activity_name}
+Activity Name: {activity_name}
 
-                Activity Metadata:
-                {meta_str}
+Activity Metadata:
+{meta_str}
 
-                For this activity, provide:
-                1. Activity Name
-                2. Activity Metadata (summarize focus area, suitable age group, and key developmental skills or goals)
-                3. Prerequisite (list materials, skills, or setup needed)
-                4. Safety Instructions (clear, concise, and age-appropriate)
-                5. How to Perform Activity (step-by-step instructions)
-                6. Post Activity Feedback (questions for parent/child to reflect on the experience)
-                7. Analytics Report (what to track, how to measure progress or engagement)
+For this activity, provide:
+1. Activity Name
+2. Activity Metadata (summarize focus area, suitable age group, and key developmental skills or goals)
+3. Prerequisite (list materials, skills, or setup needed)
+4. Safety Instructions (clear, concise, and age-appropriate)
+5. How to Perform Activity (step-by-step instructions)
+6. Post Activity Feedback (questions for parent/child to reflect on the experience)
+7. Analytics Report (what to track, how to measure progress or engagement)
 
-                Format the output for this activity as:
+Format the output for this activity as:
 
-                ---
-                **Activity Name:** [Name]
+---
+**Activity Name:** [Name]
 
-                **Activity Metadata:**  
-                [Metadata]
+**Activity Metadata:**  
+[Metadata]
 
-                **Prerequisite:**  
-                [List]
+**Prerequisite:**  
+[List]
 
-                **Safety Instructions:**  
-                [List]
+**Safety Instructions:**  
+[List]
 
-                **How to Perform Activity:**  
-                [Step-by-step instructions]
+**How to Perform Activity:**  
+[Step-by-step instructions]
 
-                **Post Activity Feedback:**  
-                [List of questions]
+**Post Activity Feedback:**  
+[List of questions]
 
-                **Analytics Report:**  
-                [What to track, how to measure progress]
+**Analytics Report:**  
+[What to track, how to measure progress]
 
-                ---
-                """
+---
+"""
         response = genai.Client().models.generate_content(
             model="gemini-2.5-flash",
             contents=prompt
@@ -126,38 +125,47 @@ def generate_activity_details(activity_row):
     else:
         # Fallback: simple template using available data
         return f"""
-                ---
-                **Activity Name:** {activity_name}
+---
+**Activity Name:** {activity_name}
 
-                **Activity Metadata:**  
-                {meta_str}
+**Activity Metadata:**  
+{meta_str}
 
-                **Prerequisite:**  
-                See activity instructions or materials needed.
+**Prerequisite:**  
+See activity instructions or materials needed.
 
-                **Safety Instructions:**  
-                Adult supervision recommended. Ensure safe environment.
+**Safety Instructions:**  
+Adult supervision recommended. Ensure safe environment.
 
-                **How to Perform Activity:**  
-                See instructions in activity database.
+**How to Perform Activity:**  
+See instructions in activity database.
 
-                **Post Activity Feedback:**  
-                How did your child respond? What went well? What was challenging?
+**Post Activity Feedback:**  
+How did your child respond? What went well? What was challenging?
 
-                **Analytics Report:**  
-                Track engagement, skill improvement, and parent/child feedback over time.
-                ---
-                """
+**Analytics Report:**  
+Track engagement, skill improvement, and parent/child feedback over time.
+---
+"""
 
 # Main Streamlit app
 def main():
     st.title("AI Activity Recommendation for Children with Special Needs")
     st.write("Answer a few questions to get personalized activity recommendations for your child.")
 
+    # Load activities once and filter out empty names
+    activities_df = load_activities()
+
     # Step 1: Collect child profile
     child_profile = st.text_area("Describe your child's age, strengths, challenges, and any diagnoses (e.g., ADHD, Autism, etc.):")
 
-    if child_profile:
+    # Use session state to persist recommendations and feedback
+    if 'recs' not in st.session_state:
+        st.session_state['recs'] = None
+    if 'feedback' not in st.session_state:
+        st.session_state['feedback'] = {}
+
+    if child_profile and st.session_state['recs'] is None:
         st.markdown("### Step 2: Parent Questionnaire")
         questions = generate_questions(child_profile)
         answers = []
@@ -166,16 +174,28 @@ def main():
             answers.append(ans)
         if st.button("Get Recommendations"):
             recs = recommend_activities(answers, activities_df)
-            st.session_state['recs'] = recs  # Store in session state
-            st.markdown("## Recommended Activities")
-            for _, row in recs.iterrows():
-                details = generate_activity_details(row)
-                st.markdown(details)
-                feedback = st.text_area(f"Feedback for {row['Activity Name']}:", key=f"fb_{row['Activity Name']}")
-                if st.button(f"Submit Feedback for {row['Activity Name']}", key=f"submit_{row['Activity Name']}"):
-                    st.success("Thank you for your feedback!")
-            st.markdown("## Analytics Report")
-            st.info("Analytics and progress tracking will appear here as you use more activities and provide feedback.")
+            st.session_state['recs'] = recs.reset_index(drop=True)
+
+    # Display recommendations and feedback
+    if st.session_state['recs'] is not None:
+        st.markdown("## Recommended Activities")
+        recs = st.session_state['recs']
+        for idx, row in recs.iterrows():
+            details = generate_activity_details(row)
+            st.markdown(details)
+            feedback_key = f"fb_{row['Activity Name']}_{idx}"
+            feedback = st.text_area(f"Feedback for {row['Activity Name']}:", key=feedback_key)
+            submit_key = f"submit_{row['Activity Name']}_{idx}"
+            if st.button(f"Submit Feedback for {row['Activity Name']}", key=submit_key):
+                st.session_state['feedback'][row['Activity Name']] = feedback
+                st.success("Thank you for your feedback!")
+        st.markdown("## Analytics Report")
+        st.info("Analytics and progress tracking will appear here as you use more activities and provide feedback.")
+
+        # Option to clear recommendations and start over
+        if st.button("Start Over"):
+            st.session_state['recs'] = None
+            st.session_state['feedback'] = {}
 
 if __name__ == "__main__":
     main()
