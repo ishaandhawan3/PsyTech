@@ -45,16 +45,16 @@ def generate_questions(child_profile):
 
 # Recommend activities based on answers and tags
 def recommend_activities(answers, activities_df):
-    # Simple keyword matching for demo; replace with Gemini for production
     keywords = " ".join(answers).lower()
     mask = (
-        activities_df["Tags"].str.lower().str.contains(keywords) |
-        activities_df["Helpful For Conditions"].str.lower().str.contains(keywords) |
-        activities_df["Keywords"].str.lower().str.contains(keywords)
+        activities_df["Focus Area(s)"].astype(str).str.lower().str.contains(keywords) |
+        activities_df["Analyze Progress"].astype(str).str.lower().str.contains(keywords) |
+        activities_df["Illness Attached"].astype(str).str.lower().str.contains(keywords) |
+        activities_df["Other Keywords"].astype(str).str.lower().str.contains(keywords)
     )
     filtered = activities_df[mask]
     if filtered.empty:
-        return activities_df.sample(3)  # fallback: random 3 activities
+        return activities_df.sample(3)
     return filtered
 
 # Display full activity details
