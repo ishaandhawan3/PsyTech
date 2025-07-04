@@ -153,12 +153,32 @@ def main():
     st.title("AI Activity Recommendation for Children with Special Needs")
     st.write("Answer a few questions to get personalized activity recommendations for your child.")
 
+    
     # Load activities once and filter out empty names
     activities_df = load_activities()
 
     # Step 1: Collect child profile
-    child_profile = st.text_area("Describe your child's age, strengths, challenges, and any diagnoses (e.g., ADHD, Autism, etc.):")
+    # Row 1: Age and Strengths
+    col1, col2 = st.columns(2)
+    with col1:
+        child_age = st.text_input("Child's Age")
+    with col2:
+        child_strengths = st.text_input("Child's Strengths (e.g., creative, social, focused)")
 
+    # Row 2: Challenges and Diagnoses
+    col3, col4 = st.columns(2)
+    with col3:
+        child_challenges = st.text_input("Child's Challenges (e.g., attention, sensory, social)")
+    with col4:
+        child_diagnoses = st.text_input("Diagnoses (e.g., ADHD, Autism, None)")
+
+    # Combine for downstream use
+    child_profile = (
+        f"Age: {child_age}; "
+        f"Strengths: {child_strengths}; "
+        f"Challenges: {child_challenges}; "
+        f"Diagnoses: {child_diagnoses}"
+    )
     # Use session state to persist recommendations and feedback
     if 'recs' not in st.session_state:
         st.session_state['recs'] = None
