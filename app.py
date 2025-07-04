@@ -14,7 +14,12 @@ except ImportError:
 # Load activity data
 @st.cache_data
 def load_activities():
-    return pd.read_csv("activities.csv")
+    try:
+        return pd.read_csv("activities.csv", encoding="utf-8")
+    except UnicodeDecodeError:
+        # Try with a more permissive encoding
+        return pd.read_csv("activities.csv", encoding="latin1")
+
 
 # Generate AI-powered questions (Gemini or fallback)
 def generate_questions(child_profile):
