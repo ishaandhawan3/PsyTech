@@ -188,11 +188,36 @@ def main():
             st.success(f"Diagnoses submitted: {child_diagnoses}")
 
     # Optionally, display all submitted info
-    st.markdown("### Submitted Information")
-    st.write("Age:", st.session_state.get('submitted_age', 'Not submitted'))
-    st.write("Strengths:", st.session_state.get('submitted_strengths', 'Not submitted'))
-    st.write("Challenges:", st.session_state.get('submitted_challenges', 'Not submitted'))
-    st.write("Diagnoses:", st.session_state.get('submitted_diagnoses', 'Not submitted'))
+    # st.markdown("### Submitted Information")
+    # st.write("Age:", st.session_state.get('submitted_age', 'Not submitted'))
+    # st.write("Strengths:", st.session_state.get('submitted_strengths', 'Not submitted'))
+    # st.write("Challenges:", st.session_state.get('submitted_challenges', 'Not submitted'))
+    # st.write("Diagnoses:", st.session_state.get('submitted_diagnoses', 'Not submitted'))
+        # Combine into a single profile string
+    child_profile = (
+        f"Age: {st.session_state.get('submitted_age', '')}; "
+        f"Strengths: {st.session_state.get('submitted_strengths', '')}; "
+        f"Challenges: {st.session_state.get('submitted_challenges', '')}; "
+        f"Diagnoses: {st.session_state.get('submitted_diagnoses', '')}"
+    )
+
+    profile_ready = any([
+        st.session_state.get('submitted_age', ''),
+        st.session_state.get('submitted_strengths', ''),
+        st.session_state.get('submitted_challenges', ''),
+        st.session_state.get('submitted_diagnoses', '')
+    ])
+
+    if profile_ready and st.session_state['recs'] is None:
+        st.markdown("### Step 2: Parent Questionnaire")
+        questions = generate_questions(child_profile)
+        answers = []
+        for i, q in enumerate(questions):
+            ans = st.text_input(q, key=f"q_{i}")
+            answers.append(ans)
+        if st.button("Get Recommendations"):
+            recs = recommend_activities(answers, activities_df)
+            st.session_state['recs'] = recs.reset_index(drop=True)
 
     # Use session state to persist recommendations and feedback
     if 'recs' not in st.session_state:
