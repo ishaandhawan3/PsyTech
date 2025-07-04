@@ -159,26 +159,41 @@ def main():
 
     # Step 1: Collect child profile
     # Row 1: Age and Strengths
+    # Row 1: Age and Strengths
     col1, col2 = st.columns(2)
     with col1:
-        child_age = st.text_input("Child's Age")
+        child_age = st.text_input("Child's Age", key="age")
+        if st.button("Submit Age", key="submit_age"):
+            st.session_state['submitted_age'] = child_age
+            st.success(f"Age submitted: {child_age}")
+
     with col2:
-        child_strengths = st.text_input("Child's Strengths (e.g., creative, social, focused)")
+        child_strengths = st.text_input("Child's Strengths (e.g., creative, social, focused)", key="strengths")
+        if st.button("Submit Strengths", key="submit_strengths"):
+            st.session_state['submitted_strengths'] = child_strengths
+            st.success(f"Strengths submitted: {child_strengths}")
 
     # Row 2: Challenges and Diagnoses
     col3, col4 = st.columns(2)
     with col3:
-        child_challenges = st.text_input("Child's Challenges (e.g., attention, sensory, social)")
-    with col4:
-        child_diagnoses = st.text_input("Diagnoses (e.g., ADHD, Autism, None)")
+        child_challenges = st.text_input("Child's Challenges (e.g., attention, sensory, social)", key="challenges")
+        if st.button("Submit Challenges", key="submit_challenges"):
+            st.session_state['submitted_challenges'] = child_challenges
+            st.success(f"Challenges submitted: {child_challenges}")
 
-    # Combine for downstream use
-    child_profile = (
-        f"Age: {child_age}; "
-        f"Strengths: {child_strengths}; "
-        f"Challenges: {child_challenges}; "
-        f"Diagnoses: {child_diagnoses}"
-    )
+    with col4:
+        child_diagnoses = st.text_input("Diagnoses (e.g., ADHD, Autism, None)", key="diagnoses")
+        if st.button("Submit Diagnoses", key="submit_diagnoses"):
+            st.session_state['submitted_diagnoses'] = child_diagnoses
+            st.success(f"Diagnoses submitted: {child_diagnoses}")
+
+    # Optionally, display all submitted info
+    st.markdown("### Submitted Information")
+    st.write("Age:", st.session_state.get('submitted_age', 'Not submitted'))
+    st.write("Strengths:", st.session_state.get('submitted_strengths', 'Not submitted'))
+    st.write("Challenges:", st.session_state.get('submitted_challenges', 'Not submitted'))
+    st.write("Diagnoses:", st.session_state.get('submitted_diagnoses', 'Not submitted'))
+
     # Use session state to persist recommendations and feedback
     if 'recs' not in st.session_state:
         st.session_state['recs'] = None
