@@ -121,7 +121,7 @@ def main():
             f"Age: {profile.get('age', '')}\n\n"
             f"Strengths: {profile.get('strengths', '')}\n\n"
             f"Challenges: {profile.get('challenges', '')}\n\n"
-            f"previous Diagnoses: {profile.get('diagnoses', '')}"
+            f"Previous Diagnoses: {profile.get('diagnoses', '')}"
         )
 
         # Step 2: Questionnaire
