@@ -162,10 +162,6 @@ def main():
     if 'feedback' not in st.session_state:
         st.session_state['feedback'] = {}
 
-   # Initialize session state for profile if not present
-    if 'profile' not in st.session_state:
-        st.session_state['profile'] = None
-
     # Show the form only if profile is not yet submitted
     if st.session_state['profile'] is None:
         with st.form("child_profile_form"):
@@ -177,7 +173,6 @@ def main():
             submitted = st.form_submit_button("Submit Profile")
 
         if submitted:
-            # Store the profile in session state
             st.session_state['profile'] = {
                 "name": child_name,
                 "age": child_age,
@@ -192,24 +187,24 @@ def main():
         profile = st.session_state['profile']
         st.markdown("#### Profile Summary")
         st.write(
-            f"Name: {profile['name']}\n"
-            f"Age: {profile['age']}\n"
-            f"Strengths: {profile['strengths']}\n"
-            f"Challenges: {profile['challenges']}\n"
-            f"Diagnoses: {profile['diagnoses']}"
+            f"Name: {profile.get('name', '')}\n"
+            f"Age: {profile.get('age', '')}\n"
+            f"Strengths: {profile.get('strengths', '')}\n"
+            f"Challenges: {profile.get('challenges', '')}\n"
+            f"Diagnoses: {profile.get('diagnoses', '')}"
         )
-        
-    # Step 2: Questionnaire
-    if st.session_state['profile'] and st.session_state['recs'] is None:
-        st.markdown("### Step 2: Parent Questionnaire")
-        questions = generate_questions(st.session_state['profile'])
-        answers = []
-        for i, q in enumerate(questions):
-            ans = st.text_input(q, key=f"questionnaire_q_{i}")
-            answers.append(ans)
-        if st.button("Get Recommendations", key="get_recommendations"):
-            recs = recommend_activities(answers, activities_df)
-            st.session_state['recs'] = recs.reset_index(drop=True)
+
+        # Step 2: Questionnaire
+        if st.session_state['recs'] is None:
+            st.markdown("### Step 2: Parent Questionnaire")
+            questions = generate_questions(profile)
+            answers = []
+            for i, q in enumerate(questions):
+                ans = st.text_input(q, key=f"questionnaire_q_{i}")
+                answers.append(ans)
+            if st.button("Get Recommendations", key="get_recommendations"):
+                recs = recommend_activities(answers, activities_df)
+                st.session_state['recs'] = recs.reset_index(drop=True)
 
     # Step 3: Display recommendations and feedback
     if st.session_state['recs'] is not None:
@@ -234,4 +229,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
