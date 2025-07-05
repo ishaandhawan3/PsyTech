@@ -96,7 +96,7 @@ def main():
             child_age = st.text_input("Child's Age")
             child_strengths = st.text_input("Child's Strengths (e.g., creative, social, focused)")
             child_challenges = st.text_input("Child's Challenges (e.g., attention, sensory, social)")
-            child_diagnoses = st.text_input("Diagnoses (e.g., ADHD, Autism, None)")
+            child_diagnoses = st.text_input("Previous Diagnoses (e.g., ADHD, Autism, None)")
             submitted = st.form_submit_button("Submit Profile")
 
         if submitted:
@@ -121,7 +121,7 @@ def main():
             f"Age: {profile.get('age', '')}\n\n"
             f"Strengths: {profile.get('strengths', '')}\n\n"
             f"Challenges: {profile.get('challenges', '')}\n\n"
-            f"Diagnoses: {profile.get('diagnoses', '')}"
+            f"previous Diagnoses: {profile.get('diagnoses', '')}"
         )
 
         # Step 2: Questionnaire
