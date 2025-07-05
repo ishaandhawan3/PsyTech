@@ -149,53 +149,33 @@ Track engagement, skill improvement, and parent/child feedback over time.
 """
 
 def main():
-    st.title("AI Activity Recommendation for Children with Special Needs")
-    st.write("Answer a few questions to get personalized activity recommendations for your child.")
+    st.title("Child Wellness Companion")
+    st.write("Answer a few questions to get personalized activity recommendations for your child's well being.")
 
     # Load activities once and filter out empty names
     activities_df = load_activities()
 
     # Step 1: Collect child profile (with separate input and submit for each)
-    col1, col2 = st.columns(2)
-    with col1:
-        child_age = st.text_input("Child's Age", key="age")
-        if st.button("Submit Age", key="submit_age"):
-            st.session_state['submitted_age'] = child_age
-            st.success(f"Age submitted: {child_age}")
+    with st.form("child_profile_form"):
+        child_name = st.text_input("Child's Name")
+        child_age = st.text_input("Child's Age")
+        child_strengths = st.text_input("Child's Strengths (e.g., creative, social, focused)")
+        child_challenges = st.text_input("Child's Challenges (e.g., attention, sensory, social)")
+        child_diagnoses = st.text_input("Diagnoses (e.g., ADHD, Autism, None)")
+        submitted = st.form_submit_button("Submit Profile")
 
-    with col2:
-        child_strengths = st.text_input("Child's Strengths (e.g., creative, social, focused)", key="strengths")
-        if st.button("Submit Strengths", key="submit_strengths"):
-            st.session_state['submitted_strengths'] = child_strengths
-            st.success(f"Strengths submitted: {child_strengths}")
-
-    col3, col4 = st.columns(2)
-    with col3:
-        child_challenges = st.text_input("Child's Challenges (e.g., attention, sensory, social)", key="challenges")
-        if st.button("Submit Challenges", key="submit_challenges"):
-            st.session_state['submitted_challenges'] = child_challenges
-            st.success(f"Challenges submitted: {child_challenges}")
-
-    with col4:
-        child_diagnoses = st.text_input("Diagnoses (e.g., ADHD, Autism, None)", key="diagnoses")
-        if st.button("Submit Diagnoses", key="submit_diagnoses"):
-            st.session_state['submitted_diagnoses'] = child_diagnoses
-            st.success(f"Diagnoses submitted: {child_diagnoses}")
-
-    # Combine into a single profile string
-    child_profile = (
-        f"Age: {st.session_state.get('submitted_age', '')}; "
-        f"Strengths: {st.session_state.get('submitted_strengths', '')}; "
-        f"Challenges: {st.session_state.get('submitted_challenges', '')}; "
-        f"Diagnoses: {st.session_state.get('submitted_diagnoses', '')}"
-    )
-
-    profile_ready = any([
-        st.session_state.get('submitted_age', ''),
-        st.session_state.get('submitted_strengths', ''),
-        st.session_state.get('submitted_challenges', ''),
-        st.session_state.get('submitted_diagnoses', '')
-    ])
+    if submitted:
+        st.success("Profile submitted!")
+        # Combine into a single profile string for downstream use
+        child_profile = (
+            f"Name: {child_name}; "
+            f"Age: {child_age}; "
+            f"Strengths: {child_strengths}; "
+            f"Challenges: {child_challenges}; "
+            f"Diagnoses: {child_diagnoses}"
+        )
+        st.markdown("#### Profile Summary")
+        st.write(child_profile)
 
     # Use session state to persist recommendations and feedback
     if 'recs' not in st.session_state:
@@ -204,7 +184,7 @@ def main():
         st.session_state['feedback'] = {}
 
     # Only show questionnaire if profile is ready and recommendations not yet generated
-    if profile_ready and st.session_state['recs'] is None:
+    if child_profile and st.session_state['recs'] is None:
         st.markdown("### Step 2: Parent Questionnaire")
         questions = generate_questions(child_profile)
         answers = []
