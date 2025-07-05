@@ -11,19 +11,16 @@ try:
 except ImportError:
     genai = None
 
-# Load activity data with encoding fallback and filter out empty activity names
 @st.cache_data
 def load_activities():
     try:
         df = pd.read_csv("activities.csv", encoding="utf-8")
     except UnicodeDecodeError:
         df = pd.read_csv("activities.csv", encoding="latin1")
-    # Remove rows with missing or blank activity names
     df = df[df['Activity Name'].notna()]
     df = df[df['Activity Name'].astype(str).str.strip() != '']
     return df
 
-# Generate AI-powered questions (Gemini or fallback)
 def generate_questions(child_profile):
     if genai:
         prompt = (
@@ -44,7 +41,6 @@ def generate_questions(child_profile):
             "What motivates or excites your child during play or learning?"
         ]
 
-# Recommend activities based on answers and tags/keywords
 def recommend_activities(answers, activities_df):
     keywords = " ".join(answers).lower()
     mask = (
@@ -58,7 +54,6 @@ def recommend_activities(answers, activities_df):
         return activities_df.sample(3)
     return filtered
 
-# Generate detailed activity info using Gemini
 def generate_activity_details(activity_row):
     activity_name = activity_row["Activity Name"]
     metadata = []
@@ -74,77 +69,12 @@ def generate_activity_details(activity_row):
         metadata.append(f"Parent Descriptions: {activity_row['Parent Description']}")
 
     meta_str = "\n".join(metadata)
-    if genai:
-        prompt = f"""
-You are an expert in child development and therapy. For the following activity, generate a detailed, structured report for parents of children with special needs (including but not limited to autism, ADHD, learning disabilities, and physical challenges).
-
-Activity Name: {activity_name}
-
-Activity Metadata:
-{meta_str}
-
-For this activity, provide:
-1. Activity Name
-2. Activity Metadata (summarize focus area, suitable age group, and key developmental skills or goals)
-3. Prerequisite (list materials, skills, or setup needed)
-4. Safety Instructions (clear, concise, and age-appropriate)
-5. How to Perform Activity (step-by-step instructions)
-6. Post Activity Feedback (questions for parent/child to reflect on the experience)
-7. Analytics Report (what to track, how to measure progress or engagement)
-
-Format the output for this activity as:
-
----
-**Activity Name:** [Name]
-
-**Activity Metadata:**  
-[Metadata]
-
-**Prerequisite:**  
-[List]
-
-**Safety Instructions:**  
-[List]
-
-**How to Perform Activity:**  
-[Step-by-step instructions]
-
-**Post Activity Feedback:**  
-[List of questions]
-
-**Analytics Report:**  
-[What to track, how to measure progress]
-
----
-"""
-        response = genai.Client().models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt
-        )
-        return response.text
-    else:
-        # Fallback: simple template using available data
-        return f"""
+    return f"""
 ---
 **Activity Name:** {activity_name}
 
 **Activity Metadata:**  
 {meta_str}
-
-**Prerequisite:**  
-See activity instructions or materials needed.
-
-**Safety Instructions:**  
-Adult supervision recommended. Ensure safe environment.
-
-**How to Perform Activity:**  
-See instructions in activity database.
-
-**Post Activity Feedback:**  
-How did your child respond? What went well? What was challenging?
-
-**Analytics Report:**  
-Track engagement, skill improvement, and parent/child feedback over time.
 ---
 """
 
@@ -154,17 +84,10 @@ def main():
 
     activities_df = load_activities()
 
-    # Use session state to persist profile, recommendations, and feedback
     if 'profile' not in st.session_state:
         st.session_state['profile'] = None
     if 'recs' not in st.session_state:
         st.session_state['recs'] = None
-    if 'feedback' not in st.session_state:
-        st.session_state['feedback'] = {}
-
-    # Initialize session state for profile if not present
-    if 'profile' not in st.session_state:
-        st.session_state['profile'] = None
 
     # PART 1: Show the form only if profile is not yet submitted
     if st.session_state['profile'] is None:
@@ -194,13 +117,12 @@ def main():
         profile = st.session_state['profile']
         st.markdown("#### Profile Summary")
         st.write(
-            f"Name: {profile.get('name', '')}\n\n"
-            f"Age: {profile.get('age', '')}\n\n"
-            f"Strengths: {profile.get('strengths', '')}\n\n"
-            f"Challenges: {profile.get('challenges', '')}\n\n"
+            f"Name: {profile.get('name', '')}\n"
+            f"Age: {profile.get('age', '')}\n"
+            f"Strengths: {profile.get('strengths', '')}\n"
+            f"Challenges: {profile.get('challenges', '')}\n"
             f"Diagnoses: {profile.get('diagnoses', '')}"
         )
-
 
         # Step 2: Questionnaire
         if st.session_state['recs'] is None:
@@ -214,28 +136,17 @@ def main():
                 recs = recommend_activities(answers, activities_df)
                 st.session_state['recs'] = recs.reset_index(drop=True)
 
-    # Step 3: Display recommendations and feedback
+    # Step 3: Display recommendations (activity name and metadata only)
     if st.session_state['recs'] is not None:
         st.markdown("## Recommended Activities")
         recs = st.session_state['recs']
         for idx, row in recs.iterrows():
             details = generate_activity_details(row)
             st.markdown(details)
-            feedback_key = f"fb_{row['Activity Name']}_{idx}"
-            feedback = st.text_area(f"Feedback for {row['Activity Name']}:", key=feedback_key)
-            submit_key = f"submit_{row['Activity Name']}_{idx}"
-            if st.button(f"Submit Feedback for {row['Activity Name']}", key=submit_key):
-                st.session_state['feedback'][row['Activity Name']] = feedback
-                st.success("Thank you for your feedback!")
-            if row['Activity Name'] in st.session_state['feedback']:
-                st.markdown(f"**Your Feedback:** {st.session_state['feedback'][row['Activity Name']]}")
 
         if st.button("Start Over", key="start_over"):
             st.session_state['profile'] = None
             st.session_state['recs'] = None
-            st.session_state['feedback'] = {}
 
 if __name__ == "__main__":
     main()
-
-
