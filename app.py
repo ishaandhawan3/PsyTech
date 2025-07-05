@@ -152,41 +152,43 @@ def main():
     st.title("Child Wellness Companion")
     st.write("Answer a few questions to get personalized activity recommendations for your child's well being.")
 
-    # Load activities once and filter out empty names
     activities_df = load_activities()
 
-    # Step 1: Collect child profile (with separate input and submit for each)
-    with st.form("child_profile_form"):
-        child_name = st.text_input("Child's Name")
-        child_age = st.text_input("Child's Age")
-        child_strengths = st.text_input("Child's Strengths (e.g., creative, social, focused)")
-        child_challenges = st.text_input("Child's Challenges (e.g., attention, sensory, social)")
-        child_diagnoses = st.text_input("Diagnoses (e.g., ADHD, Autism, None)")
-        submitted = st.form_submit_button("Submit Profile")
-
-    if submitted:
-        st.success("Profile submitted!")
-        # Combine into a single profile string for downstream use
-        child_profile = (
-            f"Name: {child_name}; "
-            f"Age: {child_age}; "
-            f"Strengths: {child_strengths}; "
-            f"Challenges: {child_challenges}; "
-            f"Diagnoses: {child_diagnoses}"
-        )
-        st.markdown("#### Profile Summary")
-        st.write(child_profile)
-
-    # Use session state to persist recommendations and feedback
+    # Use session state to persist profile, recommendations, and feedback
+    if 'profile' not in st.session_state:
+        st.session_state['profile'] = None
     if 'recs' not in st.session_state:
         st.session_state['recs'] = None
     if 'feedback' not in st.session_state:
         st.session_state['feedback'] = {}
 
-    # Only show questionnaire if profile is ready and recommendations not yet generated
-    if child_profile and st.session_state['recs'] is None:
+    # Step 1: Collect child profile in a form
+    if st.session_state['profile'] is None:
+        with st.form("child_profile_form"):
+            child_name = st.text_input("Child's Name")
+            child_age = st.text_input("Child's Age")
+            child_strengths = st.text_input("Child's Strengths (e.g., creative, social, focused)")
+            child_challenges = st.text_input("Child's Challenges (e.g., attention, sensory, social)")
+            child_diagnoses = st.text_input("Diagnoses (e.g., ADHD, Autism, None)")
+            submitted = st.form_submit_button("Submit Profile")
+
+        if submitted:
+            child_profile = (
+                f"Name: {child_name}; "
+                f"Age: {child_age}; "
+                f"Strengths: {child_strengths}; "
+                f"Challenges: {child_challenges}; "
+                f"Diagnoses: {child_diagnoses}"
+            )
+            st.session_state['profile'] = child_profile
+            st.success("Profile submitted!")
+            st.markdown("#### Profile Summary")
+            st.write(child_profile)
+
+    # Step 2: Questionnaire
+    if st.session_state['profile'] and st.session_state['recs'] is None:
         st.markdown("### Step 2: Parent Questionnaire")
-        questions = generate_questions(child_profile)
+        questions = generate_questions(st.session_state['profile'])
         answers = []
         for i, q in enumerate(questions):
             ans = st.text_input(q, key=f"questionnaire_q_{i}")
@@ -195,9 +197,7 @@ def main():
             recs = recommend_activities(answers, activities_df)
             st.session_state['recs'] = recs.reset_index(drop=True)
 
-
-
-    # Display recommendations and feedback
+    # Step 3: Display recommendations and feedback
     if st.session_state['recs'] is not None:
         st.markdown("## Recommended Activities")
         recs = st.session_state['recs']
@@ -210,14 +210,14 @@ def main():
             if st.button(f"Submit Feedback for {row['Activity Name']}", key=submit_key):
                 st.session_state['feedback'][row['Activity Name']] = feedback
                 st.success("Thank you for your feedback!")
-            # Display feedback if it exists
             if row['Activity Name'] in st.session_state['feedback']:
                 st.markdown(f"**Your Feedback:** {st.session_state['feedback'][row['Activity Name']]}")
 
-        # Option to clear recommendations and start over
         if st.button("Start Over", key="start_over"):
+            st.session_state['profile'] = None
             st.session_state['recs'] = None
             st.session_state['feedback'] = {}
 
 if __name__ == "__main__":
     main()
+
