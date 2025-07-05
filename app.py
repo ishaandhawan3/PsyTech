@@ -162,7 +162,11 @@ def main():
     if 'feedback' not in st.session_state:
         st.session_state['feedback'] = {}
 
-    # Step 1: Collect child profile in a form
+   # Initialize session state for profile if not present
+    if 'profile' not in st.session_state:
+        st.session_state['profile'] = None
+
+    # Show the form only if profile is not yet submitted
     if st.session_state['profile'] is None:
         with st.form("child_profile_form"):
             child_name = st.text_input("Child's Name")
@@ -173,18 +177,28 @@ def main():
             submitted = st.form_submit_button("Submit Profile")
 
         if submitted:
-            child_profile = (
-                f"Name: {child_name}; "
-                f"Age: {child_age}; "
-                f"Strengths: {child_strengths}; "
-                f"Challenges: {child_challenges}; "
-                f"Diagnoses: {child_diagnoses}"
-            )
-            st.session_state['profile'] = child_profile
+            # Store the profile in session state
+            st.session_state['profile'] = {
+                "name": child_name,
+                "age": child_age,
+                "strengths": child_strengths,
+                "challenges": child_challenges,
+                "diagnoses": child_diagnoses
+            }
             st.success("Profile submitted!")
-            st.markdown("#### Profile Summary")
-            st.write(child_profile)
 
+    # Access the profile anywhere in your app
+    if st.session_state['profile'] is not None:
+        profile = st.session_state['profile']
+        st.markdown("#### Profile Summary")
+        st.write(
+            f"Name: {profile['name']}\n"
+            f"Age: {profile['age']}\n"
+            f"Strengths: {profile['strengths']}\n"
+            f"Challenges: {profile['challenges']}\n"
+            f"Diagnoses: {profile['diagnoses']}"
+        )
+        
     # Step 2: Questionnaire
     if st.session_state['profile'] and st.session_state['recs'] is None:
         st.markdown("### Step 2: Parent Questionnaire")
