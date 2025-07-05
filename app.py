@@ -162,7 +162,11 @@ def main():
     if 'feedback' not in st.session_state:
         st.session_state['feedback'] = {}
 
-    # Show the form only if profile is not yet submitted
+    # Initialize session state for profile if not present
+    if 'profile' not in st.session_state:
+        st.session_state['profile'] = None
+
+    # PART 1: Show the form only if profile is not yet submitted
     if st.session_state['profile'] is None:
         with st.form("child_profile_form"):
             child_name = st.text_input("Child's Name")
@@ -173,16 +177,19 @@ def main():
             submitted = st.form_submit_button("Submit Profile")
 
         if submitted:
-            st.session_state['profile'] = {
-                "name": child_name,
-                "age": child_age,
-                "strengths": child_strengths,
-                "challenges": child_challenges,
-                "diagnoses": child_diagnoses
-            }
-            st.success("Profile submitted!")
+            if not (child_name and child_age and child_strengths and child_challenges and child_diagnoses):
+                st.error("Please fill out all fields before submitting.")
+            else:
+                st.session_state['profile'] = {
+                    "name": child_name,
+                    "age": child_age,
+                    "strengths": child_strengths,
+                    "challenges": child_challenges,
+                    "diagnoses": child_diagnoses
+                }
+                st.success("Profile submitted!")
 
-    # Access the profile anywhere in your app
+    # PART 2: Show the profile summary if profile is submitted
     if st.session_state['profile'] is not None:
         profile = st.session_state['profile']
         st.markdown("#### Profile Summary")
@@ -193,6 +200,7 @@ def main():
             f"Challenges: {profile.get('challenges', '')}\n"
             f"Diagnoses: {profile.get('diagnoses', '')}"
         )
+
 
         # Step 2: Questionnaire
         if st.session_state['recs'] is None:
