@@ -148,18 +148,14 @@ Track engagement, skill improvement, and parent/child feedback over time.
 ---
 """
 
-# Main Streamlit app
 def main():
     st.title("AI Activity Recommendation for Children with Special Needs")
     st.write("Answer a few questions to get personalized activity recommendations for your child.")
 
-    
     # Load activities once and filter out empty names
     activities_df = load_activities()
 
-    # Step 1: Collect child profile
-    # Row 1: Age and Strengths
-    # Row 1: Age and Strengths
+    # Step 1: Collect child profile (with separate input and submit for each)
     col1, col2 = st.columns(2)
     with col1:
         child_age = st.text_input("Child's Age", key="age")
@@ -173,7 +169,6 @@ def main():
             st.session_state['submitted_strengths'] = child_strengths
             st.success(f"Strengths submitted: {child_strengths}")
 
-    # Row 2: Challenges and Diagnoses
     col3, col4 = st.columns(2)
     with col3:
         child_challenges = st.text_input("Child's Challenges (e.g., attention, sensory, social)", key="challenges")
@@ -187,13 +182,7 @@ def main():
             st.session_state['submitted_diagnoses'] = child_diagnoses
             st.success(f"Diagnoses submitted: {child_diagnoses}")
 
-    # Optionally, display all submitted info
-    # st.markdown("### Submitted Information")
-    # st.write("Age:", st.session_state.get('submitted_age', 'Not submitted'))
-    # st.write("Strengths:", st.session_state.get('submitted_strengths', 'Not submitted'))
-    # st.write("Challenges:", st.session_state.get('submitted_challenges', 'Not submitted'))
-    # st.write("Diagnoses:", st.session_state.get('submitted_diagnoses', 'Not submitted'))
-        # Combine into a single profile string
+    # Combine into a single profile string
     child_profile = (
         f"Age: {st.session_state.get('submitted_age', '')}; "
         f"Strengths: {st.session_state.get('submitted_strengths', '')}; "
@@ -208,31 +197,21 @@ def main():
         st.session_state.get('submitted_diagnoses', '')
     ])
 
-    if profile_ready and st.session_state['recs'] is None:
-        st.markdown("### Step 2: Parent Questionnaire")
-        questions = generate_questions(child_profile)
-        answers = []
-        for i, q in enumerate(questions):
-            ans = st.text_input(q, key=f"q_{i}")
-            answers.append(ans)
-        if st.button("Get Recommendations"):
-            recs = recommend_activities(answers, activities_df)
-            st.session_state['recs'] = recs.reset_index(drop=True)
-
     # Use session state to persist recommendations and feedback
     if 'recs' not in st.session_state:
         st.session_state['recs'] = None
     if 'feedback' not in st.session_state:
         st.session_state['feedback'] = {}
 
-    if child_profile and st.session_state['recs'] is None:
+    # Only show questionnaire if profile is ready and recommendations not yet generated
+    if profile_ready and st.session_state['recs'] is None:
         st.markdown("### Step 2: Parent Questionnaire")
         questions = generate_questions(child_profile)
         answers = []
         for i, q in enumerate(questions):
-            ans = st.text_input(q, key=f"q_{i}")
+            ans = st.text_input(q, key=f"questionnaire_q_{i}")
             answers.append(ans)
-        if st.button("Get Recommendations"):
+        if st.button("Get Recommendations", key="get_recommendations"):
             recs = recommend_activities(answers, activities_df)
             st.session_state['recs'] = recs.reset_index(drop=True)
 
@@ -253,9 +232,8 @@ def main():
             if row['Activity Name'] in st.session_state['feedback']:
                 st.markdown(f"**Your Feedback:** {st.session_state['feedback'][row['Activity Name']]}")
 
-
         # Option to clear recommendations and start over
-        if st.button("Start Over"):
+        if st.button("Start Over", key="start_over"):
             st.session_state['recs'] = None
             st.session_state['feedback'] = {}
 
