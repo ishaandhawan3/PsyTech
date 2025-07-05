@@ -56,27 +56,27 @@ def recommend_activities(answers, activities_df):
 
 def generate_activity_details(activity_row):
     activity_name = activity_row["Activity Name"]
+    # Collect all metadata fields, only if they exist and are not empty
     metadata = []
-    if pd.notna(activity_row.get("Focus Area(s)", "")):
-        metadata.append(f"Focus Area(s): {activity_row['Focus Area(s)']}")
-    if pd.notna(activity_row.get("Analyze Progress", "")):
-        metadata.append(f"Key Skills/Goals: {activity_row['Analyze Progress']}")
-    if pd.notna(activity_row.get("Illness Attached", "")):
-        metadata.append(f"Helpful For: {activity_row['Illness Attached']}")
-    if pd.notna(activity_row.get("Other Keywords", "")):
-        metadata.append(f"Keywords: {activity_row['Other Keywords']}")
-    if pd.notna(activity_row.get("Parent Description", "")):
-        metadata.append(f"Parent Descriptions: {activity_row['Parent Description']}")
+    if pd.notna(activity_row.get("Focus Area(s)", "")) and activity_row.get("Focus Area(s)", "").strip():
+        metadata.append(f"**Focus Area(s):** {activity_row['Focus Area(s)']}")
+    if pd.notna(activity_row.get("Analyze Progress", "")) and activity_row.get("Analyze Progress", "").strip():
+        metadata.append(f"**Key Skills/Goals:** {activity_row['Analyze Progress']}")
+    if pd.notna(activity_row.get("Illness Attached", "")) and activity_row.get("Illness Attached", "").strip():
+        metadata.append(f"**Helpful For:** {activity_row['Illness Attached']}")
+    if pd.notna(activity_row.get("Other Keywords", "")) and activity_row.get("Other Keywords", "").strip():
+        metadata.append(f"**Keywords:** {activity_row['Other Keywords']}")
+    if pd.notna(activity_row.get("Parent Description", "")) and activity_row.get("Parent Description", "").strip():
+        metadata.append(f"**Parent Descriptions:** {activity_row['Parent Description']}")
 
+    # Join metadata as normal text (not heading, not bold block)
     meta_str = "\n".join(metadata)
     return f"""
----
 **Activity Name:** {activity_name}
 
-**Activity Metadata:**  
 {meta_str}
----
 """
+
 
 def main():
     st.title("Child Wellness Companion")
