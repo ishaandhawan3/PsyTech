@@ -215,6 +215,7 @@ def main():
             recs = recommend_activities(answers, activities_df)
             st.session_state['recs'] = recs.reset_index(drop=True)
 
+
     # Display recommendations and feedback
     if st.session_state['recs'] is not None:
         st.markdown("## Recommended Activities")
