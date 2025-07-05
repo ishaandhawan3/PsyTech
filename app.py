@@ -194,10 +194,10 @@ def main():
         profile = st.session_state['profile']
         st.markdown("#### Profile Summary")
         st.write(
-            f"Name: {profile.get('name', '')}\n"
-            f"Age: {profile.get('age', '')}\n"
-            f"Strengths: {profile.get('strengths', '')}\n"
-            f"Challenges: {profile.get('challenges', '')}\n"
+            f"Name: {profile.get('name', '')}\n\n"
+            f"Age: {profile.get('age', '')}\n\n"
+            f"Strengths: {profile.get('strengths', '')}\n\n"
+            f"Challenges: {profile.get('challenges', '')}\n\n"
             f"Diagnoses: {profile.get('diagnoses', '')}"
         )
 
