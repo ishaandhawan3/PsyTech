@@ -43,20 +43,22 @@ def recommend_activities(form_data, activities_df):
                 f"Based on this child profile: {form_data}, "
                 f"and these example activities: {sample_acts}, "
                 f"generate {num_to_generate} new, unique activity recommendations. "
-                "Each activity must include the following fields, matching the format and order of the example activities:\n"
-                "- Activity Name\n"
-                "- Focus Area(s)\n"
-                "- 4–6: Early Childhood Education\n"
-                "- 6–8: Social, Emotional, Behavioral\n"
-                "- 8–10: Focus, Engagement\n"
-                "- 10+\n"
-                "- Delivery\n"
-                "- Analyze Progress\n"
-                "- Conditions\n"
-                "- Illness Attached\n"
-                "- Other Keywords\n"
-                "- Parent Description\n"
-                "Format your response as a JSON list of dicts, each with these exact keys."
+                """Each activity must include the following fields, matching the format and order of the example activities:
+                - Activity Name
+                - Focus Area(s)
+                - 4–6: Early Childhood Education
+                - 6–8: Social, Emotional, Behavioral
+                - 8–10: Focus, Engagement
+                - 10+
+                - Delivery
+                - Analyze Progress
+                - Conditions
+                - Illness Attached
+                - Other Keywords
+                - Parent Description
+                If a field is not applicable, leave it blank or use a dash (—).
+                Format your response as a JSON list of dicts, each with these exact keys."""
+
             )
             response = genai.Client().models.generate_content(
                 model="gemini-2.5-flash",
@@ -94,10 +96,13 @@ def generate_activity_details(activity_row):
     lines = []
     for label, col in fields:
         val = activity_row.get(col, "")
-        if pd.notna(val) and str(val).strip():
-            lines.append(f"- **{label}:** {val}")
+        val = str(val).strip() if pd.notna(val) else ""
+        if not val:
+            val = "—"
+        lines.append(f"**{label}:** {val}")
     meta_str = "\n".join(lines)
     return meta_str
+
 
 def main():
     st.title("Child Wellness Companion")
