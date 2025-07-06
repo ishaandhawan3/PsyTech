@@ -109,13 +109,16 @@ def recommend_activities(form_data, activities_df):
 
 def display_activity(activity):
     st.markdown(
-        f"<div style='font-size:1.3em; font-weight:bold; margin-bottom:0.2em'>{activity['Activity Name']}</div>",
+        f"""
+        <div style='padding:1em; border:1px solid #ccc; border-radius:10px; margin-bottom:1em; background-color:#f9f9f9'>
+            <div style='font-size:1.4em; font-weight:bold; margin-bottom:0.5em'>{activity['Activity Name']}</div>
+            <div><strong>Focus Area:</strong> {activity['Focus Area']}</div>
+            <div><strong>Conditions:</strong> {activity['Conditions']}</div>
+            <div><strong>Keywords:</strong> {activity['Keywords']}</div>
+        </div>
+        """,
         unsafe_allow_html=True
     )
-    st.markdown("**Tags**")
-    st.markdown(f"Focus Area: {activity['Focus Area']}\n")
-    st.markdown(f"Conditions: {activity['Conditions']}\n")
-    st.markdown(f"Keywords: {activity['Keywords']}\n")
 
 def main():
     st.title("Child Wellness Companion")
