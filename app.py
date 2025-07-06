@@ -97,7 +97,7 @@ def main():
             child_strengths = st.text_input("Child's Strengths (e.g., creative, social, focused)")
             child_challenges = st.text_input("Child's Challenges (e.g., attention, sensory, social)")
             child_diagnoses = st.text_input("Previous Diagnoses (e.g., ADHD, Autism, None)")
-            any_other_information = st.text_input("Any Other Information")
+            any_other_information = st.text_input("Any Other Information(optional)")
             submitted = st.form_submit_button("Submit Profile")
 
         if submitted:
@@ -115,17 +115,31 @@ def main():
                 st.success("Profile submitted!")
 
     # PART 2: Show the profile summary if profile is submitted
-    if st.session_state['profile'] is not None:
-        profile = st.session_state['profile']
-        st.markdown("#### Profile Summary")
-        st.write(
-            f"Name: {profile.get('name', '')}\n\n"
-            f"Age: {profile.get('age', '')}\n\n"
-            f"Strengths: {profile.get('strengths', '')}\n\n"
-            f"Challenges: {profile.get('challenges', '')}\n\n"
-            f"Previous Diagnoses: {profile.get('diagnoses', '')}\n]n"
-            f"Any Other Information: {profile.get('other_info', '')}\n\n"
-        )
+    if st.session_state['profile'] is None:
+        with st.form("child_profile_form"):
+            child_name = st.text_input("Child's Name")
+            child_age = st.text_input("Child's Age")
+            child_strengths = st.text_input("Child's Strengths (e.g., creative, social, focused)")
+            child_challenges = st.text_input("Child's Challenges (e.g., attention, sensory, social)")
+            child_diagnoses = st.text_input("Previous Diagnoses (e.g., ADHD, Autism, None)")
+            any_other_information = st.text_input("Any Other Information (optional)")
+            submitted = st.form_submit_button("Submit Profile")
+
+        if submitted:
+            # Only check the mandatory fields (exclude 'any_other_information')
+            if not (child_name and child_age and child_strengths and child_challenges and child_diagnoses):
+                st.error("Please fill out all mandatory fields before submitting.")
+            else:
+                st.session_state['profile'] = {
+                    "name": child_name,
+                    "age": child_age,
+                    "strengths": child_strengths,
+                    "challenges": child_challenges,
+                    "diagnoses": child_diagnoses,
+                    "other_info": any_other_information  # This can be empty
+                }
+                st.success("Profile submitted!")
+
 
         # Step 2: Questionnaire
         if st.session_state['recs'] is None:
