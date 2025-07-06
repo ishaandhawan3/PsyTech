@@ -21,42 +21,27 @@ def load_activities():
     df = df[df['Activity Name'].astype(str).str.strip() != '']
     return df
 
-def generate_questions(child_profile):
-    if genai:
-        prompt = (
-            f"Generate 5 concise, parent-friendly questions to assess a child's needs for activity recommendations. "
-            f"Child profile: {child_profile}. Questions should cover strengths, challenges, social, emotional, and physical aspects."
-        )
-        response = genai.Client().models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt
-        )
-        return [q.strip("- ").strip() for q in response.text.split("\n") if q.strip()]
-    else:
-        return [
-            "What are your child's main strengths?",
-            "What challenges does your child face most often?",
-            "Are there any specific skills you want your child to improve?",
-            "Does your child have any sensory sensitivities or physical limitations?",
-            "What motivates or excites your child during play or learning?"
-        ]
-
-def recommend_activities(answers, activities_df):
-    keywords = " ".join(answers).lower()
+def recommend_activities(form_data, activities_df):
+    # Combine all form answers into a single string for keyword matching
+    keywords = " ".join([str(v) for v in form_data.values() if v]).lower()
     mask = (
         activities_df["Focus Area(s)"].astype(str).str.lower().str.contains(keywords) |
         activities_df["Analyze Progress"].astype(str).str.lower().str.contains(keywords) |
         activities_df["Illness Attached"].astype(str).str.lower().str.contains(keywords) |
-        activities_df["Other Keywords"].astype(str).str.lower().str.contains(keywords)
+        activities_df["Other Keywords"].astype(str).str.lower().str.contains(keywords) |
+        activities_df["Parent Description"].astype(str).str.lower().str.contains(keywords)
     )
     filtered = activities_df[mask]
-    if filtered.empty:
-        return activities_df.sample(3)
+    if filtered.shape[0] < 5:
+        # If less than 5, fill up with random activities (excluding already selected)
+        extra = activities_df[~activities_df.index.isin(filtered.index)].sample(5 - filtered.shape[0])
+        filtered = pd.concat([filtered, extra])
+    else:
+        filtered = filtered.head(5)
     return filtered
 
 def generate_activity_details(activity_row):
     activity_name = activity_row["Activity Name"]
-    # Collect all metadata fields, only if they exist and are not empty
     metadata = []
     if pd.notna(activity_row.get("Focus Area(s)", "")) and activity_row.get("Focus Area(s)", "").strip():
         metadata.append(f"**Focus Area(s):** {activity_row['Focus Area(s)']}")
@@ -68,8 +53,6 @@ def generate_activity_details(activity_row):
         metadata.append(f"**Keywords:** {activity_row['Other Keywords']}")
     if pd.notna(activity_row.get("Parent Description", "")) and activity_row.get("Parent Description", "").strip():
         metadata.append(f"**Parent Descriptions:** {activity_row['Parent Description']}")
-
-    # Join metadata as normal text (not heading, not bold block)
     meta_str = "\n".join(metadata)
     return f"""
 **Activity Name:** {activity_name}
@@ -77,10 +60,9 @@ def generate_activity_details(activity_row):
 {meta_str}
 """
 
-
 def main():
     st.title("Child Wellness Companion")
-    st.write("Answer a few questions to get personalized activity recommendations for your child's well being.")
+    st.write("Fill out the form below to get personalized activity recommendations for your child.")
 
     activities_df = load_activities()
 
@@ -89,6 +71,7 @@ def main():
     if 'recs' not in st.session_state:
         st.session_state['recs'] = None
 
+    # Single form for all questions
     if st.session_state['profile'] is None:
         with st.form("child_profile"):
             child_name = st.text_input("Child's Name")
@@ -97,10 +80,15 @@ def main():
             child_challenges = st.text_input("Child's Challenges (e.g., attention, sensory, social)")
             child_diagnoses = st.text_input("Previous Diagnoses (e.g., ADHD, Autism, None)")
             any_other_information = st.text_input("Any Other Information (optional)")
+            # Additional questions
+            skills_to_improve = st.text_input("Are there any specific skills you want your child to improve?")
+            sensory_physical = st.text_input("Does your child have any sensory sensitivities or physical limitations?")
+            motivation = st.text_input("What motivates or excites your child during play or learning?")
             submitted = st.form_submit_button("Submit Profile")
 
         if submitted:
-            if not (child_name and child_age and child_strengths and child_challenges and child_diagnoses):
+            # Only check the mandatory fields (exclude 'any_other_information')
+            if not (child_name and child_age and child_strengths and child_challenges and child_diagnoses and skills_to_improve and sensory_physical and motivation):
                 st.error("Please fill out all mandatory fields before submitting.")
             else:
                 st.session_state['profile'] = {
@@ -109,11 +97,14 @@ def main():
                     "strengths": child_strengths,
                     "challenges": child_challenges,
                     "diagnoses": child_diagnoses,
-                    "other_info": any_other_information  # This can be empty
+                    "other_info": any_other_information,
+                    "skills_to_improve": skills_to_improve,
+                    "sensory_physical": sensory_physical,
+                    "motivation": motivation
                 }
                 st.success("Profile submitted!")
 
-    # Show the profile summary and next steps only if profile is submitted
+    # Show the profile summary and recommendations if profile is submitted
     if st.session_state['profile'] is not None:
         profile = st.session_state['profile']
         st.markdown("#### Profile Summary")
@@ -123,22 +114,18 @@ def main():
             f"Strengths: {profile.get('strengths', '')}\n"
             f"Challenges: {profile.get('challenges', '')}\n"
             f"Diagnoses: {profile.get('diagnoses', '')}\n"
-            f"Other Info: {profile.get('other_info', '')}"
+            f"Other Info: {profile.get('other_info', '')}\n"
+            f"Skills to Improve: {profile.get('skills_to_improve', '')}\n"
+            f"Sensory/Physical Limitations: {profile.get('sensory_physical', '')}\n"
+            f"Motivation: {profile.get('motivation', '')}"
         )
 
-        # Step 2: Questionnaire
         if st.session_state['recs'] is None:
-            st.markdown("### Questionnaire")
-            questions = generate_questions(profile)
-            answers = []
-            for i, q in enumerate(questions):
-                ans = st.text_input(q, key=f"questionnaire_q_{i}")
-                answers.append(ans)
-            if st.button("Get Recommendations", key="get_recommendations"):
-                recs = recommend_activities(answers, activities_df)
-                st.session_state['recs'] = recs.reset_index(drop=True)
+            # Recommend activities based on all form input
+            recs = recommend_activities(profile, activities_df)
+            st.session_state['recs'] = recs.reset_index(drop=True)
 
-    # Step 3: Display recommendations (activity name and metadata only)
+    # Display recommendations (activity name and metadata only)
     if st.session_state['recs'] is not None:
         st.markdown("## Recommended Activities")
         recs = st.session_state['recs']
@@ -149,7 +136,6 @@ def main():
         if st.button("Start Over", key="start_over"):
             st.session_state['profile'] = None
             st.session_state['recs'] = None
-
 
 if __name__ == "__main__":
     main()
