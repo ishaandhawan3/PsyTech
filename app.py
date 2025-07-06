@@ -45,7 +45,7 @@ def ai_generate_tags(form_data, sample_acts):
         response = model.generate_content(prompt)
         raw = response.text.strip()
 
-        st.write("🔍 Gemini Response:", raw)  # Debug output
+        # st.write("🔍 Gemini Response:", raw)  # Debug output
 
 
         # Remove code block formatting if present
