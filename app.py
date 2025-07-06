@@ -183,11 +183,16 @@ def main():
     if st.session_state['recs'] is not None:
         st.markdown("## Recommended Activities")
         for activity in st.session_state['recs']:
-            name = activity.get("Activity Name", "")
+            if not isinstance(activity, dict):
+                continue  # skip if the activity is not a valid dictionary
+
+            name = activity.get("Activity Name", "Unnamed Activity")
             if not isinstance(name, str) or not name.strip():
                 name = "Unnamed Activity"
+            
             with st.expander(name):
                 display_activity(activity)
+
 
         if st.button("Start Over", key="start_over"):
             st.session_state['profile'] = None
