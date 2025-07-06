@@ -1,14 +1,11 @@
 import streamlit as st
 import pandas as pd
 import os
+from google import genai
 
-# Optional: Gemini integration
-try:
-    from google import genai
-    GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
-    genai.configure(api_key=GEMINI_API_KEY)
-except ImportError:
-    genai = None
+GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
+genai.configure(api_key=GEMINI_API_KEY)
+
 
 @st.cache_data
 def load_activities():
@@ -42,6 +39,7 @@ Respond in JSON format with these keys:
   "Keywords": "..."
 }}
 """
+    st.write("🔍 Gemini Response:", text)
 
     try:
         model = genai.GenerativeModel("gemini-1.5-flash")
@@ -69,6 +67,8 @@ Respond in JSON format with these keys:
             "Conditions": "ADHD, Autism",
             "Keywords": "puzzles, matching, visual, focus"
         }
+    
+
 
 def extract_tags(activity_row):
     import pandas as pd
