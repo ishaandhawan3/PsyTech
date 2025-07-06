@@ -39,12 +39,26 @@ def recommend_activities(form_data, activities_df):
         if genai:
             # Use the first 3 activities as style reference
             sample_acts = filtered.head(3).to_dict(orient="records")
+            # Build a prompt that requests all metadata fields in the same format as the CSV
             prompt = (
+                f"You are an expert in child development and therapy. "
                 f"Based on this child profile: {form_data}, "
                 f"and these example activities: {sample_acts}, "
                 f"generate {num_to_generate} new, unique activity recommendations. "
-                "Each activity should include: Activity Name, Focus Area(s), Key Skills/Goals, Helpful For, Keywords, Parent Descriptions. "
-                "Format as a JSON list of dicts with these keys: 'Activity Name', 'Focus Area(s)', 'Analyze Progress', 'Illness Attached', 'Other Keywords', 'Parent Description'."
+                "Each activity must include the following fields, matching the format and detail of the example activities:\n\n"
+                "- Activity Name\n\n"
+                "- Focus Area(s)\n\n"
+                "- 4–6: Early Childhood Education\n\n"
+                "- 6–8: Social, Emotional, Behavioral\n\n"
+                "- 8–10: Focus, Engagement\n\n"
+                "- 10+\n\n"
+                "- Delivery\n\n"
+                "- Analyze Progress\n\n"
+                "- Conditions\n\n"
+                "- Illness Attached\n\n"
+                "- Other Keywords\n\n"
+                "- Parent Description\n\n"
+                "Format your response as a JSON list of dicts, each with these exact keys."
             )
             response = genai.Client().models.generate_content(
                 model="gemini-2.5-flash",
@@ -68,18 +82,26 @@ def recommend_activities(form_data, activities_df):
     return filtered
 
 def generate_activity_details(activity_row):
-    metadata = []
-    if pd.notna(activity_row.get("Focus Area(s)", "")) and activity_row.get("Focus Area(s)", "").strip():
-        metadata.append(f"**Focus Area(s):** {activity_row['Focus Area(s)']}")
-    if pd.notna(activity_row.get("Analyze Progress", "")) and activity_row.get("Analyze Progress", "").strip():
-        metadata.append(f"**Key Skills/Goals:** {activity_row['Analyze Progress']}")
-    if pd.notna(activity_row.get("Illness Attached", "")) and activity_row.get("Illness Attached", "").strip():
-        metadata.append(f"**Helpful For:** {activity_row['Illness Attached']}")
-    if pd.notna(activity_row.get("Other Keywords", "")) and activity_row.get("Other Keywords", "").strip():
-        metadata.append(f"**Keywords:** {activity_row['Other Keywords']}")
-    if pd.notna(activity_row.get("Parent Description", "")) and activity_row.get("Parent Description", "").strip():
-        metadata.append(f"**Parent Descriptions:** {activity_row['Parent Description']}")
-    meta_str = "\n".join(metadata)
+    # Show all metadata fields in the same order/format as the CSV
+    fields = [
+        ("Focus Area(s)", "Focus Area(s)"),
+        ("4–6: Early Childhood Education", "4–6: Early Childhood Education"),
+        ("6–8: Social, Emotional, Behavioral", "6–8: Social, Emotional, Behavioral"),
+        ("8–10: Focus, Engagement", "8–10: Focus, Engagement"),
+        ("10+", "10+"),
+        ("Delivery", "Delivery"),
+        ("Analyze Progress", "Analyze Progress"),
+        ("Conditions", "Conditions"),
+        ("Illness Attached", "Illness Attached"),
+        ("Other Keywords", "Other Keywords"),
+        ("Parent Description", "Parent Description"),
+    ]
+    lines = []
+    for label, col in fields:
+        val = activity_row.get(col, "")
+        if pd.notna(val) and str(val).strip():
+            lines.append(f"**{label}:** {val}")
+    meta_str = "\n".join(lines)
     return meta_str
 
 def main():
