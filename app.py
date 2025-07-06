@@ -21,69 +21,8 @@ def load_activities():
     df = df[df['Activity Name'].astype(str).str.strip() != '']
     return df
 
-def ai_generate_tags(form_data, sample_acts):
-    prompt = (
-        f"""You are an expert in child development and therapy.
-            Given this child profile: {form_data},
-            and these example activities: {sample_acts},
-            generate a new, unique activity recommendation.
-
-            For this activity, generate the following fields in the exact format below:
-            - Activity Name: (short, descriptive, unique, and relevant to the profile)
-            - Focus Area: (comma-separated, e.g. Fine Motor, Cognitive; must be specific and relevant)
-            - Conditions: (comma-separated, e.g. ADHD, Autism, etc.; must be relevant to the profile and activity)
-            - Keywords: (comma-separated, e.g. puzzles, matching, visual, etc.; must be specific to the activity)
-
-            Do not use dashes or placeholders. All fields must be filled with realistic, relevant values.
-            Format your response as a JSON dict with these exact keys: 'Activity Name', 'Focus Area', 'Conditions', 'Keywords'."""
-
-    )
-    response = genai.Client().models.generate_content(
-        model="gemini-2.5-flash",
-        contents=prompt
-    )
-    import json
-    try:
-        tags = json.loads(response.text)
-        # If any field is empty, fill with a generic but relevant value
-        for field in ["Activity Name", "Focus Area", "Conditions", "Keywords"]:
-            if field not in tags or not str(tags[field]).strip():
-                # Provide a generic but relevant fallback
-                if field == "Activity Name":
-                    tags[field] = "Engagement Activity"
-                elif field == "Focus Area":
-                    tags[field] = "Cognitive, Fine Motor"
-                elif field == "Conditions":
-                    tags[field] = "ADHD, Autism"
-                elif field == "Keywords":
-                    tags[field] = "puzzles, matching, visual, focus"
-        return tags
-    except Exception:
-        return {
-            "Activity Name": "Engagement Activity",
-            "Focus Area": "Cognitive, Fine Motor",
-            "Conditions": "ADHD, Autism",
-            "Keywords": "puzzles, matching, visual, focus"
-        }
-
-
-def extract_tags(activity_row):
-    # Focus Area
-    focus_area = activity_row.get("Focus Area(s)", "—")
-    # Conditions
-    conditions = activity_row.get("Illness Attached", "—")
-    # Keywords
-    keywords = activity_row.get("Other Keywords", "—")
-    # Activity Name
-    activity_name = activity_row.get("Activity Name", "—")
-    return {
-        "Activity Name": activity_name if str(activity_name).strip() else "—",
-        "Focus Area": focus_area if str(focus_area).strip() else "—",
-        "Conditions": conditions if str(conditions).strip() else "—",
-        "Keywords": keywords if str(keywords).strip() else "—"
-    }
-
 def recommend_activities(form_data, activities_df):
+    # Combine all form answers into a single string for keyword matching
     keywords = " ".join([str(v) for v in form_data.values() if v]).lower()
     mask = (
         activities_df["Focus Area(s)"].astype(str).str.lower().str.contains(keywords) |
@@ -93,37 +32,64 @@ def recommend_activities(form_data, activities_df):
         activities_df["Parent Description"].astype(str).str.lower().str.contains(keywords)
     )
     filtered = activities_df[mask]
-    tag_rows = []
-    for idx, row in filtered.iterrows():
-        tags = extract_tags(row)
-        tag_rows.append(tags)
-    # If less than 5, generate more using AI (with real activity names)
-    if len(tag_rows) < 5 and genai:
-        num_to_generate = 5 - len(tag_rows)
-        sample_acts = tag_rows[:3]
-        for _ in range(num_to_generate):
-            ai_tags = ai_generate_tags(form_data, sample_acts)
-            tag_rows.append(ai_tags)
-    elif len(tag_rows) < 5:
-        # Fallback: fill with dashes and generic names
-        for i in range(5 - len(tag_rows)):
-            tag_rows.append({
-                "Activity Name": f"Activity {i+1+len(tag_rows)}",
-                "Focus Area": "—",
-                "Conditions": "—",
-                "Keywords": "—"
-            })
-    return tag_rows[:5]
+    # If less than 5, generate more using AI
+    if filtered.shape[0] < 5:
+        num_to_generate = 5 - filtered.shape[0]
+        ai_activities = []
+        if genai:
+            # Use the first 3 activities as style reference
+            sample_acts = filtered.head(3).to_dict(orient="records")
+            # Build a prompt that requests all metadata fields in the same format as the CSV
+            prompt = (
+                f"You are an expert in child development and therapy. "
+                f"Based on this child profile: {form_data}, "
+                f"and these example activities: {sample_acts}, "
+                f"generate {num_to_generate} new, unique activity recommendations. "
+                "Each activity must include the following fields, matching the format and detail of the example activities:\n\n"
+                "- Activity Name\n\n"
+                "- Focus Area(s)\n\n"
+                "- Conditions\n\n"
+                "- Other Keywords\n\n"
+                "Format your response as a JSON list of dicts, each with these exact keys."
+            )
+            response = genai.Client().models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt
+            )
+            import json
+            try:
+                ai_activities = json.loads(response.text)
+            except Exception:
+                ai_activities = []
+        # Convert AI activities to DataFrame and append
+        if ai_activities:
+            ai_df = pd.DataFrame(ai_activities)
+            filtered = pd.concat([filtered, ai_df], ignore_index=True)
+        else:
+            # Fallback: fill with random activities not already selected
+            extra = activities_df[~activities_df.index.isin(filtered.index)].sample(num_to_generate)
+            filtered = pd.concat([filtered, extra])
+    else:
+        filtered = filtered.head(5)
+    return filtered
 
-def display_activity(activity):
-    st.markdown(
-        f"<div style='font-size:1.3em; font-weight:bold; margin-bottom:0.2em'>{activity['Activity Name']}</div>",
-        unsafe_allow_html=True
-    )
-    st.markdown("**Tags**")
-    st.markdown(f"Focus Area: {activity['Focus Area']}")
-    st.markdown(f"Conditions: {activity['Conditions']}")
-    st.markdown(f"Keywords: {activity['Keywords']}")
+def generate_activity_details(activity_row):
+    # Show all metadata fields in the same order/format as the CSV
+    fields = [
+        ("Focus Area(s)", "Focus Area(s)"),
+        # ("Analyze Progress", "Analyze Progress"),
+        ("Conditions", "Conditions"),
+        # ("Illness Attached", "Illness Attached"),
+        ("Other Keywords", "Other Keywords"),
+        # ("Parent Description", "Parent Description"),
+    ]
+    lines = []
+    for label, col in fields:
+        val = activity_row.get(col, "")
+        if pd.notna(val) and str(val).strip():
+            lines.append(f"**{label}:** {val}")
+    meta_str = "\n".join(lines)
+    return meta_str
 
 def main():
     st.title("Child Wellness Companion")
@@ -136,6 +102,7 @@ def main():
     if 'recs' not in st.session_state:
         st.session_state['recs'] = None
 
+    # Single form for all questions
     if st.session_state['profile'] is None:
         with st.form("child_profile"):
             child_name = st.text_input("Child's Name")
@@ -166,33 +133,35 @@ def main():
                 }
                 st.success("Profile submitted!")
 
+    # Show the profile summary and recommendations if profile is submitted
     if st.session_state['profile'] is not None:
         profile = st.session_state['profile']
         st.markdown("#### Profile Summary")
         st.write(
-            f"Name: {profile.get('name', '')}\n"
-            f"Age: {profile.get('age', '')}\n"
-            f"Strengths: {profile.get('strengths', '')}\n"
-            f"Challenges: {profile.get('challenges', '')}\n"
-            f"Diagnoses: {profile.get('diagnoses', '')}\n"
-            f"Skills to Improve: {profile.get('skills_to_improve', '')}\n"
-            f"Sensory/Physical Limitations: {profile.get('sensory_physical', '')}\n"
-            f"Motivation: {profile.get('motivation', '')}\n"
+            f"Name: {profile.get('name', '')}\n\n"
+            f"Age: {profile.get('age', '')}\n\n"
+            f"Strengths: {profile.get('strengths', '')}\n\n"
+            f"Challenges: {profile.get('challenges', '')}\n\n"
+            f"Diagnoses: {profile.get('diagnoses', '')}\n\n"
+            f"Skills to Improve: {profile.get('skills_to_improve', '')}\n\n"
+            f"Sensory/Physical Limitations: {profile.get('sensory_physical', '')}\n\n"
+            f"Motivation: {profile.get('motivation', '')}\n\n"
             f"Other Info: {profile.get('other_info', '')}"
         )
 
         if st.session_state['recs'] is None:
-            tag_rows = recommend_activities(profile, activities_df)
-            st.session_state['recs'] = tag_rows
+            # Recommend activities based on all form input
+            recs = recommend_activities(profile, activities_df)
+            st.session_state['recs'] = recs.reset_index(drop=True)
 
+    # Display recommendations (activity name as dropdown, metadata inside)
     if st.session_state['recs'] is not None:
         st.markdown("## Recommended Activities")
-        for activity in st.session_state['recs']:
-            name = activity.get("Activity Name", "")
-            if not isinstance(name, str) or not name.strip():
-                name = "Unnamed Activity"
-            with st.expander(name):
-                display_activity(activity)
+        recs = st.session_state['recs']
+        for idx, row in recs.iterrows():
+            with st.expander(row["Activity Name"]):
+                details = generate_activity_details(row)
+                st.markdown(details)
 
         if st.button("Start Over", key="start_over"):
             st.session_state['profile'] = None
