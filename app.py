@@ -126,7 +126,7 @@ def main():
 
         # Step 2: Questionnaire
         if st.session_state['recs'] is None:
-            st.markdown("### Step 2: Parent Questionnaire")
+            st.markdown("#More information about your child")
             questions = generate_questions(profile)
             answers = []
             for i, q in enumerate(questions):
