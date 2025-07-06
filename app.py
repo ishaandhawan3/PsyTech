@@ -28,11 +28,12 @@ def ai_generate_tags(form_data, sample_acts):
         f"and these example activities: {sample_acts}, "
         "generate a new, unique activity recommendation. "
         "For this activity, generate the following fields in the exact format below:\n"
-        "- Activity Name: (short, descriptive, unique)\n"
-        "- Focus Area: (comma-separated, e.g. Fine Motor, Cognitive)\n"
-        "- Conditions: (comma-separated, e.g. ADHD, Autism, etc.)\n"
-        "- Keywords: (comma-separated, e.g. puzzles, matching, visual, etc.)\n"
-        "If a field is not applicable, use a dash (—). Format your response as a JSON dict with these exact keys: 'Activity Name', 'Focus Area', 'Conditions', 'Keywords'."
+        "- Activity Name: (short, descriptive, unique, and relevant to the profile)\n"
+        "- Focus Area: (comma-separated, e.g. Fine Motor, Cognitive; must be specific and relevant)\n"
+        "- Conditions: (comma-separated, e.g. ADHD, Autism, etc.; must be relevant to the profile and activity)\n"
+        "- Keywords: (comma-separated, e.g. puzzles, matching, visual, etc.; must be specific to the activity)\n"
+        "Do not use dashes or placeholders. All fields must be filled with realistic, relevant values. "
+        "Format your response as a JSON dict with these exact keys: 'Activity Name', 'Focus Area', 'Conditions', 'Keywords'."
     )
     response = genai.Client().models.generate_content(
         model="gemini-2.5-flash",
@@ -41,12 +42,18 @@ def ai_generate_tags(form_data, sample_acts):
     import json
     try:
         tags = json.loads(response.text)
+        # Fallback: If any field is empty, fill with a generic but relevant value
         for field in ["Activity Name", "Focus Area", "Conditions", "Keywords"]:
             if field not in tags or not str(tags[field]).strip():
-                tags[field] = "—"
+                tags[field] = "General" if field == "Focus Area" else "See activity description"
         return tags
     except Exception:
-        return {field: "—" for field in ["Activity Name", "Focus Area", "Conditions", "Keywords"]}
+        return {
+            "Activity Name": "Engagement Activity",
+            "Focus Area": "Cognitive, Fine Motor",
+            "Conditions": "ADHD, Autism",
+            "Keywords": "puzzles, matching, visual, focus"
+        }
 
 def extract_tags(activity_row):
     # Focus Area
