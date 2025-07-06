@@ -5,9 +5,8 @@ import os
 # Optional: Gemini integration
 try:
     from google import genai
-    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-    if GEMINI_API_KEY:
-        genai.configure(api_key=GEMINI_API_KEY)
+    GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
+    genai.configure(api_key=GEMINI_API_KEY)
 except ImportError:
     genai = None
 
@@ -22,58 +21,53 @@ def load_activities():
     return df
 
 def ai_generate_tags(form_data, sample_acts):
-    """
-    Generate ONE activity (name + metadata) with Gemini.
-    Returns a dict with the 4 required keys.  If Gemini fails,
-    a sensible fallback is returned.
-    """
     import json
 
     prompt = f"""
-    You are an expert paediatric occupational‑therapist.
+You are an expert child therapist.
 
-    CHILD PROFILE:
-    {form_data}
+Given this child profile:
+{form_data}
 
-    SAMPLE ACTIVITIES (for style reference only):
-    {sample_acts}
+And example activity styles:
+{sample_acts}
 
-    TASK ✨:
-    Create ONE brand‑new activity perfectly matched to this child.
-    Return your answer **exactly** as raw JSON (no Markdown, no code‑fences):
+Create ONE new tailored activity for this child.
+Respond in JSON format with these keys:
 
-    {{
-    "Activity Name": "short descriptive title",
-    "Focus Area": "comma‑separated (e.g., Fine Motor, Cognitive)",
-    "Conditions": "comma‑separated diagnoses addressed",
-    "Keywords": "comma‑separated key words"
-    }}
-    """
+{{
+  "Activity Name": "...",
+  "Focus Area": "...",
+  "Conditions": "...",
+  "Keywords": "..."
+}}
+"""
+
     try:
-        # -------  CORRECT GEMINI CALL  -------
-        model  = genai.GenerativeModel("gemini-1.5-flash")   # or 1.5‑pro if enabled
-        resp   = model.generate_content(prompt)
-        text   = resp.text.strip()
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        response = model.generate_content(prompt)
+        text = response.text.strip()
 
-        # strip ```json … ``` if Gemini wrapped it
         if text.startswith("```"):
             text = text.split("```")[1].strip()
 
+        st.write("🔍 Gemini Response:", text)  # Debug
+
         tags = json.loads(text)
 
-        # quick sanity‑check for missing keys
         for key in ["Activity Name", "Focus Area", "Conditions", "Keywords"]:
             if key not in tags or not str(tags[key]).strip():
-                raise ValueError("missing field")
+                raise ValueError("Missing field")
 
         return tags
+
     except Exception as e:
-        # Fallback so the app never crashes
+        st.warning(f"⚠️ Gemini failed: {e}")
         return {
-            "Activity Name": "Mindful Animal Yoga",
-            "Focus Area": "Emotional Regulation, Gross Motor",
-            "Conditions": "Autism, ADHD",
-            "Keywords": "yoga, animal poses, breathing, calm"
+            "Activity Name": "Engagement Activity",
+            "Focus Area": "Cognitive, Fine Motor",
+            "Conditions": "ADHD, Autism",
+            "Keywords": "puzzles, matching, visual, focus"
         }
 
 def extract_tags(activity_row):
