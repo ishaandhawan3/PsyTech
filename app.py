@@ -22,7 +22,6 @@ def load_activities():
     return df
 
 def recommend_activities(form_data, activities_df):
-    # Combine all form answers into a single string for keyword matching
     keywords = " ".join([str(v) for v in form_data.values() if v]).lower()
     mask = (
         activities_df["Focus Area(s)"].astype(str).str.lower().str.contains(keywords) |
@@ -32,7 +31,6 @@ def recommend_activities(form_data, activities_df):
         activities_df["Parent Description"].astype(str).str.lower().str.contains(keywords)
     )
     filtered = activities_df[mask]
-    # If less than 5, generate more using AI
     if filtered.shape[0] < 5:
         num_to_generate = 5 - filtered.shape[0]
         ai_activities = []
@@ -43,22 +41,20 @@ def recommend_activities(form_data, activities_df):
                 f"Based on this child profile: {form_data}, "
                 f"and these example activities: {sample_acts}, "
                 f"generate {num_to_generate} new, unique activity recommendations. "
-                """Each activity must include the following fields, matching the format and order of the example activities:
-                - Activity Name
-                - Focus Area(s)
-                - 4–6: Early Childhood Education
-                - 6–8: Social, Emotional, Behavioral
-                - 8–10: Focus, Engagement
-                - 10+
-                - Delivery
-                - Analyze Progress
-                - Conditions
-                - Illness Attached
-                - Other Keywords
-                - Parent Description
-                If a field is not applicable, leave it blank or use a dash (—).
-                Format your response as a JSON list of dicts, each with these exact keys."""
-
+                "Each activity must include the following fields, matching the format and order of the example activities:\n"
+                "- Activity Name\n"
+                "- Focus Area(s)\n"
+                "- 4–6: Early Childhood Education\n"
+                "- 6–8: Social, Emotional, Behavioral\n"
+                "- 8–10: Focus, Engagement\n"
+                "- 10+\n"
+                "- Delivery\n"
+                "- Analyze Progress\n"
+                "- Conditions\n"
+                "- Illness Attached\n"
+                "- Other Keywords\n"
+                "- Parent Description\n"
+                "If a field is not applicable, use a dash (—). Format your response as a JSON list of dicts, each with these exact keys."
             )
             response = genai.Client().models.generate_content(
                 model="gemini-2.5-flash",
@@ -70,6 +66,17 @@ def recommend_activities(form_data, activities_df):
             except Exception:
                 ai_activities = []
         if ai_activities:
+            # Ensure all required fields are present in each AI activity
+            required_fields = [
+                "Activity Name", "Focus Area(s)", "4–6: Early Childhood Education",
+                "6–8: Social, Emotional, Behavioral", "8–10: Focus, Engagement", "10+",
+                "Delivery", "Analyze Progress", "Conditions", "Illness Attached",
+                "Other Keywords", "Parent Description"
+            ]
+            for act in ai_activities:
+                for field in required_fields:
+                    if field not in act or not str(act[field]).strip():
+                        act[field] = "—"
             ai_df = pd.DataFrame(ai_activities)
             filtered = pd.concat([filtered, ai_df], ignore_index=True)
         else:
@@ -102,7 +109,6 @@ def generate_activity_details(activity_row):
         lines.append(f"**{label}:** {val}")
     meta_str = "\n".join(lines)
     return meta_str
-
 
 def main():
     st.title("Child Wellness Companion")
