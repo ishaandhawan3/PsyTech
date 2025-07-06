@@ -21,6 +21,46 @@ def load_activities():
     df = df[df['Activity Name'].astype(str).str.strip() != '']
     return df
 
+def complete_metadata_with_ai(activity_row, form_data, sample_acts):
+    # Identify missing fields
+    required_fields = [
+        "Activity Name", "Focus Area(s)", "4–6: Early Childhood Education",
+        "6–8: Social, Emotional, Behavioral", "8–10: Focus, Engagement", "10+",
+        "Delivery", "Analyze Progress", "Conditions", "Illness Attached",
+        "Other Keywords", "Parent Description"
+    ]
+    missing_fields = [field for field in required_fields if not str(activity_row.get(field, "")).strip() or activity_row.get(field, "") == "—"]
+    if not missing_fields or not genai:
+        # No missing fields or no AI available
+        return activity_row
+
+    # Build a prompt for Gemini to fill missing fields for this activity
+    prompt = (
+        f"You are an expert in child development and therapy. "
+        f"Given this child profile: {form_data}, "
+        f"and these example activities: {sample_acts}, "
+        f"complete the following activity's missing metadata fields. "
+        f"Activity so far: {dict(activity_row)}. "
+        f"Fill ONLY these fields: {missing_fields}. "
+        "Return a JSON dict with the missing fields filled, using the same keys."
+    )
+    response = genai.Client().models.generate_content(
+        model="gemini-2.5-flash",
+        contents=prompt
+    )
+    import json
+    try:
+        ai_fields = json.loads(response.text)
+        for field in missing_fields:
+            val = ai_fields.get(field, "—")
+            if not str(val).strip():
+                val = "—"
+            activity_row[field] = val
+    except Exception:
+        for field in missing_fields:
+            activity_row[field] = "—"
+    return activity_row
+
 def recommend_activities(form_data, activities_df):
     keywords = " ".join([str(v) for v in form_data.values() if v]).lower()
     mask = (
@@ -84,6 +124,28 @@ def recommend_activities(form_data, activities_df):
             filtered = pd.concat([filtered, extra])
     else:
         filtered = filtered.head(5)
+
+    # For each activity, check for missing fields and fill with AI if needed
+    if genai:
+        sample_acts = filtered.head(3).to_dict(orient="records")
+        for idx, row in filtered.iterrows():
+            row_dict = row.to_dict()
+            completed_row = complete_metadata_with_ai(row_dict, form_data, sample_acts)
+            for key, value in completed_row.items():
+                filtered.at[idx, key] = value
+    else:
+        # If no AI, fill missing fields with dash
+        required_fields = [
+            "Activity Name", "Focus Area(s)", "4–6: Early Childhood Education",
+            "6–8: Social, Emotional, Behavioral", "8–10: Focus, Engagement", "10+",
+            "Delivery", "Analyze Progress", "Conditions", "Illness Attached",
+            "Other Keywords", "Parent Description"
+        ]
+        for idx, row in filtered.iterrows():
+            for field in required_fields:
+                val = row.get(field, "")
+                if not str(val).strip():
+                    filtered.at[idx, field] = "—"
     return filtered
 
 def generate_activity_details(activity_row):
