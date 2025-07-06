@@ -22,47 +22,58 @@ def load_activities():
     return df
 
 def ai_generate_tags(form_data, sample_acts):
-    prompt = f"""
-            You are an expert child therapist.
-            Based on this child profile: {form_data}, and these example activities: {sample_acts},
-            generate a new activity suggestion tailored to the child.
-
-            Format your output strictly as JSON:
-            {{
-            "Activity Name": "Descriptive name",
-            "Focus Area": "e.g. Fine Motor, Cognitive",
-            "Conditions": "e.g. ADHD, Autism",
-            "Keywords": "e.g. puzzles, matching, visual"
-            }}
-            """
-
-    model = genai.GenerativeModel("gemini-1.5-flash")  # Use correct model ID
-    chat = model.start_chat()
-
-    response = chat.send_message(prompt)
-
+    """
+    Generate ONE activity (name + metadata) with Gemini.
+    Returns a dict with the 4 required keys.  If Gemini fails,
+    a sensible fallback is returned.
+    """
     import json
-    try:
-        tags = json.loads(response.text.strip())
 
-        for field in ["Activity Name", "Focus Area", "Conditions", "Keywords"]:
-            if field not in tags or not str(tags[field]).strip():
-                # Provide a generic but relevant fallback
-                if field == "Activity Name":
-                    tags[field] = "Engagement Activity"
-                elif field == "Focus Area":
-                    tags[field] = "Cognitive, Fine Motor"
-                elif field == "Conditions":
-                    tags[field] = "ADHD, Autism"
-                elif field == "Keywords":
-                    tags[field] = "puzzles, matching, visual, focus"
+    prompt = f"""
+    You are an expert paediatric occupational‑therapist.
+
+    CHILD PROFILE:
+    {form_data}
+
+    SAMPLE ACTIVITIES (for style reference only):
+    {sample_acts}
+
+    TASK ✨:
+    Create ONE brand‑new activity perfectly matched to this child.
+    Return your answer **exactly** as raw JSON (no Markdown, no code‑fences):
+
+    {{
+    "Activity Name": "short descriptive title",
+    "Focus Area": "comma‑separated (e.g., Fine Motor, Cognitive)",
+    "Conditions": "comma‑separated diagnoses addressed",
+    "Keywords": "comma‑separated key words"
+    }}
+    """
+    try:
+        # -------  CORRECT GEMINI CALL  -------
+        model  = genai.GenerativeModel("gemini-1.5-flash")   # or 1.5‑pro if enabled
+        resp   = model.generate_content(prompt)
+        text   = resp.text.strip()
+
+        # strip ```json … ``` if Gemini wrapped it
+        if text.startswith("```"):
+            text = text.split("```")[1].strip()
+
+        tags = json.loads(text)
+
+        # quick sanity‑check for missing keys
+        for key in ["Activity Name", "Focus Area", "Conditions", "Keywords"]:
+            if key not in tags or not str(tags[key]).strip():
+                raise ValueError("missing field")
+
         return tags
-    except Exception:
+    except Exception as e:
+        # Fallback so the app never crashes
         return {
-            "Activity Name": "Engagement Activity",
-            "Focus Area": "Cognitive, Fine Motor",
-            "Conditions": "ADHD, Autism",
-            "Keywords": "puzzles, matching, visual, focus"
+            "Activity Name": "Mindful Animal Yoga",
+            "Focus Area": "Emotional Regulation, Gross Motor",
+            "Conditions": "Autism, ADHD",
+            "Keywords": "yoga, animal poses, breathing, calm"
         }
 
 def extract_tags(activity_row):
@@ -95,10 +106,11 @@ def recommend_activities(form_data, activities_df):
     # If less than 5, generate more using AI (with real activity names)
     if len(tag_rows) < 5 and genai:
         num_to_generate = 5 - len(tag_rows)
+        # pass at most 3 sample rows for style
         sample_acts = tag_rows[:3]
         for _ in range(num_to_generate):
-            ai_tags = ai_generate_tags(form_data, sample_acts)
-            tag_rows.append(ai_tags)
+            tag_rows.append(ai_generate_tags(form_data, sample_acts))
+
     elif len(tag_rows) < 5:
         # Fallback: fill with generic values
         for i in range(5 - len(tag_rows)):
@@ -111,17 +123,17 @@ def recommend_activities(form_data, activities_df):
     return tag_rows[:5]
 
 def display_activity(activity):
+    """Pretty print one activity — works in light & dark mode."""
     st.markdown(
-        f"""
-        <div style='padding:1em; border:1px solid #ccc; border-radius:10px; margin-bottom:1em; background-color:#f9f9f9'>
-            <div style='font-size:1.4em; font-weight:bold; margin-bottom:0.5em'>{activity['Activity Name']}</div>
-            <div><strong>Focus Area:</strong> {activity['Focus Area']}</div>
-            <div><strong>Conditions:</strong> {activity['Conditions']}</div>
-            <div><strong>Keywords:</strong> {activity['Keywords']}</div>
-        </div>
-        """,
+        f"<div style='font-size:1.35rem; font-weight:700; margin-bottom:0.4rem;'>"
+        f"{activity['Activity Name']}</div>",
         unsafe_allow_html=True
     )
+    # each field on its own line, inheriting Streamlit theme colours
+    st.markdown(f"**Focus Area:** {activity['Focus Area']}")
+    st.markdown(f"**Conditions:** {activity['Conditions']}")
+    st.markdown(f"**Keywords:** {activity['Keywords']}")
+
 
 def main():
     st.title("Child Wellness Companion")
@@ -134,6 +146,7 @@ def main():
     if 'recs' not in st.session_state:
         st.session_state['recs'] = None
 
+    # FORM
     if st.session_state['profile'] is None:
         with st.form("child_profile"):
             child_name = st.text_input("Child's Name")
@@ -164,6 +177,7 @@ def main():
                 }
                 st.success("Profile submitted!")
 
+    # PROFILE SUMMARY + RECOMMENDATIONS
     if st.session_state['profile'] is not None:
         profile = st.session_state['profile']
         st.markdown("#### Profile Summary")
@@ -183,19 +197,16 @@ def main():
             tag_rows = recommend_activities(profile, activities_df)
             st.session_state['recs'] = tag_rows
 
+    # DISPLAY RECOMMENDED ACTIVITIES
     if st.session_state['recs'] is not None:
         st.markdown("## Recommended Activities")
         for activity in st.session_state['recs']:
             if not isinstance(activity, dict):
-                continue  # skip if the activity is not a valid dictionary
-
-            name = activity.get("Activity Name", "Unnamed Activity")
-            if not isinstance(name, str) or not name.strip():
-                name = "Unnamed Activity"
+                continue  # skip invalid data
             
+            name = activity.get("Activity Name", "").strip() or "Unnamed Activity"
             with st.expander(name):
                 display_activity(activity)
-
 
         if st.button("Start Over", key="start_over"):
             st.session_state['profile'] = None
@@ -203,3 +214,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
