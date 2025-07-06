@@ -21,33 +21,18 @@ def load_activities():
     df = df[df['Activity Name'].astype(str).str.strip() != '']
     return df
 
-def generate_full_metadata_with_ai(activity_name, form_data, sample_acts):
-    # Ask Gemini to generate all fields for this activity
-    required_fields = [
-        "Activity Name", "Focus Area(s)", "4–6: Early Childhood Education",
-        "6–8: Social, Emotional, Behavioral", "8–10: Focus, Engagement", "10+",
-        "Delivery", "Analyze Progress", "Conditions", "Illness Attached",
-        "Other Keywords", "Parent Description"
-    ]
+def ai_generate_tags(activity_name, form_data, sample_acts):
     prompt = (
         f"You are an expert in child development and therapy. "
         f"Given this child profile: {form_data}, "
         f"and these example activities: {sample_acts}, "
         f"generate a new activity with the name '{activity_name}'. "
-        "Fill ALL of the following fields, matching the format and order of the example activities:\n"
-        "- Activity Name\n"
-        "- Focus Area(s)\n"
-        "- 4–6: Early Childhood Education\n"
-        "- 6–8: Social, Emotional, Behavioral\n"
-        "- 8–10: Focus, Engagement\n"
-        "- 10+\n"
-        "- Delivery\n"
-        "- Analyze Progress\n"
-        "- Conditions\n"
-        "- Illness Attached\n"
-        "- Other Keywords\n"
-        "- Parent Description\n"
-        "If a field is not applicable, use a dash (—). Format your response as a JSON dict with these exact keys."
+        "For this activity, generate the following tags in the exact format below:\n"
+        "- Focus Area: (comma-separated, e.g. Fine Motor, Cognitive)\n"
+        "- Age Group: (e.g. 4–6, 6–8, 8–10, 10+, or a range like 4–10+)\n"
+        "- Conditions: (comma-separated, e.g. ADHD, Autism, etc.)\n"
+        "- Keywords: (comma-separated, e.g. puzzles, matching, visual, etc.)\n"
+        "If a tag is not applicable, use a dash (—). Format your response as a JSON dict with these exact keys: 'Focus Area', 'Age Group', 'Conditions', 'Keywords'."
     )
     response = genai.Client().models.generate_content(
         model="gemini-2.5-flash",
@@ -55,14 +40,40 @@ def generate_full_metadata_with_ai(activity_name, form_data, sample_acts):
     )
     import json
     try:
-        ai_fields = json.loads(response.text)
-        for field in required_fields:
-            if field not in ai_fields or not str(ai_fields[field]).strip():
-                ai_fields[field] = "—"
-        return ai_fields
+        tags = json.loads(response.text)
+        for field in ["Focus Area", "Age Group", "Conditions", "Keywords"]:
+            if field not in tags or not str(tags[field]).strip():
+                tags[field] = "—"
+        return tags
     except Exception:
-        # Fallback: fill all fields with dash except name
-        return {field: activity_name if field == "Activity Name" else "—" for field in required_fields}
+        return {field: "—" for field in ["Focus Area", "Age Group", "Conditions", "Keywords"]}
+
+def extract_tags(activity_row):
+    # Focus Area
+    focus_area = activity_row.get("Focus Area(s)", "—")
+    # Age Group: collect all age columns with a checkmark
+    age_cols = [
+        ("4–6: Early Childhood Education", "4–6"),
+        ("6–8: Social, Emotional, Behavioral", "6–8"),
+        ("8–10: Focus, Engagement", "8–10"),
+        ("10+", "10+")
+    ]
+    age_group = []
+    for col, label in age_cols:
+        val = str(activity_row.get(col, "")).strip()
+        if val in ["✔️", "(✔️)"]:
+            age_group.append(label)
+    age_group_str = ", ".join(age_group) if age_group else "—"
+    # Conditions
+    conditions = activity_row.get("Illness Attached", "—")
+    # Keywords
+    keywords = activity_row.get("Other Keywords", "—")
+    return {
+        "Focus Area": focus_area if str(focus_area).strip() else "—",
+        "Age Group": age_group_str,
+        "Conditions": conditions if str(conditions).strip() else "—",
+        "Keywords": keywords if str(keywords).strip() else "—"
+    }
 
 def recommend_activities(form_data, activities_df):
     keywords = " ".join([str(v) for v in form_data.values() if v]).lower()
@@ -74,58 +85,57 @@ def recommend_activities(form_data, activities_df):
         activities_df["Parent Description"].astype(str).str.lower().str.contains(keywords)
     )
     filtered = activities_df[mask]
-    # If less than 5, generate more using AI (full activity, not just missing fields)
+    # If less than 5, generate more using AI (full tags)
     if filtered.shape[0] < 5 and genai:
         num_to_generate = 5 - filtered.shape[0]
         sample_acts = filtered.head(3).to_dict(orient="records")
-        # Generate unique activity names for AI
         ai_activity_names = [f"AI Activity {i+1}" for i in range(num_to_generate)]
         ai_activities = []
         for name in ai_activity_names:
-            ai_fields = generate_full_metadata_with_ai(name, form_data, sample_acts)
-            ai_activities.append(ai_fields)
+            tags = ai_generate_tags(name, form_data, sample_acts)
+            ai_activities.append({
+                "Activity Name": name,
+                **tags
+            })
         ai_df = pd.DataFrame(ai_activities)
         filtered = pd.concat([filtered, ai_df], ignore_index=True)
     else:
         filtered = filtered.head(5)
-    # If still not enough, fill with randoms (all fields as dash except name)
-    if filtered.shape[0] < 5:
-        num_to_generate = 5 - filtered.shape[0]
-        extra_names = [f"Extra Activity {i+1}" for i in range(num_to_generate)]
-        required_fields = [
-            "Activity Name", "Focus Area(s)", "4–6: Early Childhood Education",
-            "6–8: Social, Emotional, Behavioral", "8–10: Focus, Engagement", "10+",
-            "Delivery", "Analyze Progress", "Conditions", "Illness Attached",
-            "Other Keywords", "Parent Description"
-        ]
-        extra_acts = [{field: name if field == "Activity Name" else "—" for field in required_fields} for name in extra_names]
-        extra_df = pd.DataFrame(extra_acts)
-        filtered = pd.concat([filtered, extra_df], ignore_index=True)
-    return filtered
+    # For all activities, ensure tags are present and filled (use AI for missing if possible)
+    tag_rows = []
+    for idx, row in filtered.iterrows():
+        if "Focus Area" in row and "Age Group" in row and "Conditions" in row and "Keywords" in row:
+            tags = {
+                "Focus Area": row["Focus Area"],
+                "Age Group": row["Age Group"],
+                "Conditions": row["Conditions"],
+                "Keywords": row["Keywords"]
+            }
+        else:
+            # Extract from CSV or use AI if missing
+            tags = extract_tags(row)
+            # If any tag is missing, try to fill with AI
+            if genai and any(v == "—" for v in tags.values()):
+                ai_tags = ai_generate_tags(row.get("Activity Name", f"Activity {idx+1}"), form_data, sample_acts)
+                for k in tags:
+                    if tags[k] == "—" and ai_tags[k] != "—":
+                        tags[k] = ai_tags[k]
+        tag_rows.append({
+            "Activity Name": row.get("Activity Name", f"Activity {idx+1}"),
+            **tags
+        })
+    return tag_rows
 
-def generate_activity_details(activity_row):
-    fields = [
-        ("Focus Area(s)", "Focus Area(s)"),
-        ("4–6: Early Childhood Education", "4–6: Early Childhood Education"),
-        ("6–8: Social, Emotional, Behavioral", "6–8: Social, Emotional, Behavioral"),
-        ("8–10: Focus, Engagement", "8–10: Focus, Engagement"),
-        ("10+", "10+"),
-        ("Delivery", "Delivery"),
-        ("Analyze Progress", "Analyze Progress"),
-        ("Conditions", "Conditions"),
-        ("Illness Attached", "Illness Attached"),
-        ("Other Keywords", "Other Keywords"),
-        ("Parent Description", "Parent Description"),
-    ]
-    lines = []
-    for label, col in fields:
-        val = activity_row.get(col, "")
-        val = str(val).strip() if pd.notna(val) else ""
-        if not val:
-            val = "—"
-        lines.append(f"**{label}:** {val}")
-    meta_str = "\n".join(lines)
-    return meta_str
+def display_activity(activity):
+    st.markdown(
+        f"<div style='font-size:1.3em; font-weight:bold; margin-bottom:0.2em'>{activity['Activity Name']}</div>",
+        unsafe_allow_html=True
+    )
+    st.markdown("**Tags**")
+    st.markdown(f"- **Focus Area:** {activity['Focus Area']}")
+    st.markdown(f"- **Age Group:** {activity['Age Group']}")
+    st.markdown(f"- **Conditions:** {activity['Conditions']}")
+    st.markdown(f"- **Keywords:** {activity['Keywords']}")
 
 def main():
     st.title("Child Wellness Companion")
@@ -184,17 +194,14 @@ def main():
         )
 
         if st.session_state['recs'] is None:
-            recs = recommend_activities(profile, activities_df)
-            st.session_state['recs'] = recs.reset_index(drop=True)
+            tag_rows = recommend_activities(profile, activities_df)
+            st.session_state['recs'] = tag_rows
 
     if st.session_state['recs'] is not None:
         st.markdown("## Recommended Activities")
-        recs = st.session_state['recs']
-        for idx, row in recs.iterrows():
-            with st.expander(row["Activity Name"]):
-                st.markdown("**Meta Data:**")
-                details = generate_activity_details(row)
-                st.markdown(details)
+        for activity in st.session_state['recs']:
+            with st.expander(activity["Activity Name"]):
+                display_activity(activity)
 
         if st.button("Start Over", key="start_over"):
             st.session_state['profile'] = None
@@ -202,4 +209,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-  
