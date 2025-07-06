@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import os
-from google.generativeai import genai
+import google.generativeai as genai
 
 GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 genai.configure(api_key=GEMINI_API_KEY)
