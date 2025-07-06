@@ -42,10 +42,18 @@ def ai_generate_tags(form_data, sample_acts):
     import json
     try:
         tags = json.loads(response.text)
-        # Fallback: If any field is empty, fill with a generic but relevant value
+        # If any field is empty, fill with a generic but relevant value
         for field in ["Activity Name", "Focus Area", "Conditions", "Keywords"]:
             if field not in tags or not str(tags[field]).strip():
-                tags[field] = "General" if field == "Focus Area" else "See activity description"
+                # Provide a generic but relevant fallback
+                if field == "Activity Name":
+                    tags[field] = "Engagement Activity"
+                elif field == "Focus Area":
+                    tags[field] = "Cognitive, Fine Motor"
+                elif field == "Conditions":
+                    tags[field] = "ADHD, Autism"
+                elif field == "Keywords":
+                    tags[field] = "puzzles, matching, visual, focus"
         return tags
     except Exception:
         return {
@@ -54,6 +62,7 @@ def ai_generate_tags(form_data, sample_acts):
             "Conditions": "ADHD, Autism",
             "Keywords": "puzzles, matching, visual, focus"
         }
+
 
 def extract_tags(activity_row):
     # Focus Area
