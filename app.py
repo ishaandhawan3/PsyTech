@@ -35,13 +35,15 @@ def ai_generate_tags(form_data, sample_acts):
         "Do not use dashes or placeholders. All fields must be filled with realistic, relevant values. "
         "Format your response as a JSON dict with these exact keys: 'Activity Name', 'Focus Area', 'Conditions', 'Keywords'."
     )
-    response = genai.Client().models.generate_content(
-        model="gemini-2.5-flash",
-        contents=prompt
-    )
+    model = genai.GenerativeModel("gemini-1.5-flash")  # Use correct model ID
+    chat = model.start_chat()
+
+    response = chat.send_message(prompt)
+
     import json
     try:
-        tags = json.loads(response.text)
+        tags = json.loads(response.text.strip())
+
         for field in ["Activity Name", "Focus Area", "Conditions", "Keywords"]:
             if field not in tags or not str(tags[field]).strip():
                 # Provide a generic but relevant fallback
