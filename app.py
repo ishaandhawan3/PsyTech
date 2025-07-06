@@ -116,7 +116,7 @@ def main():
 
     # PART 2: Show the profile summary if profile is submitted
     if st.session_state['profile'] is None:
-        with st.form("child_profile_form"):
+        with st.form("child_profile"):
             child_name = st.text_input("Child's Name")
             child_age = st.text_input("Child's Age")
             child_strengths = st.text_input("Child's Strengths (e.g., creative, social, focused)")
