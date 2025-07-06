@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import os
+import re
 import google.generativeai as genai
 
 GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
@@ -46,11 +47,13 @@ def ai_generate_tags(form_data, sample_acts):
 
         st.write("🔍 Gemini Response:", raw)  # Debug output
 
-        # If Gemini wrapped in ```json``` or ```text```, remove it
-        if raw.startswith("```"):
-            raw = raw.split("```")[1].strip()
 
+        # Remove code block formatting if present
+        raw = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw.strip(), flags=re.IGNORECASE)
+
+        # Try to parse
         tags = json.loads(raw)
+
 
         # Validate all required fields
         for key in ["Activity Name", "Focus Area", "Conditions", "Keywords"]:
