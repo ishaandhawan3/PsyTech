@@ -21,41 +21,41 @@ def ai_generate_tags(form_data, sample_acts):
     import json
 
     prompt = f"""
-You are an expert child therapist.
+    You are a child therapist.
 
-Given this child profile:
-{form_data}
+    CHILD PROFILE:
+    {form_data}
 
-And example activity styles:
-{sample_acts}
+    SAMPLE ACTIVITIES:
+    {sample_acts}
 
-Create ONE new tailored activity for this child.
-Respond in JSON format with these keys:
+    Generate ONE highly personalized activity. Respond ONLY with JSON (no code formatting), like this:
 
-{{
-  "Activity Name": "...",
-  "Focus Area": "...",
-  "Conditions": "...",
-  "Keywords": "..."
-}}
-"""
-    st.write("🔍 Gemini Response:", text)
+    {{
+    "Activity Name": "Emotion Safari",
+    "Focus Area": "Emotional Regulation, Visual Processing",
+    "Conditions": "Autism, ADHD",
+    "Keywords": "animals, matching cards, emotion expressions"
+    }}
+    """
 
     try:
         model = genai.GenerativeModel("gemini-1.5-flash")
         response = model.generate_content(prompt)
-        text = response.text.strip()
+        raw = response.text.strip()
 
-        if text.startswith("```"):
-            text = text.split("```")[1].strip()
+        st.write("🔍 Gemini Response:", raw)  # Debug output
 
-        st.write("🔍 Gemini Response:", text)  # Debug
+        # If Gemini wrapped in ```json``` or ```text```, remove it
+        if raw.startswith("```"):
+            raw = raw.split("```")[1].strip()
 
-        tags = json.loads(text)
+        tags = json.loads(raw)
 
+        # Validate all required fields
         for key in ["Activity Name", "Focus Area", "Conditions", "Keywords"]:
             if key not in tags or not str(tags[key]).strip():
-                raise ValueError("Missing field")
+                raise ValueError(f"Missing field: {key}")
 
         return tags
 
@@ -67,6 +67,7 @@ Respond in JSON format with these keys:
             "Conditions": "ADHD, Autism",
             "Keywords": "puzzles, matching, visual, focus"
         }
+
     
 
 
