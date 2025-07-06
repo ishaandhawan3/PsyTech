@@ -97,6 +97,7 @@ def main():
             child_strengths = st.text_input("Child's Strengths (e.g., creative, social, focused)")
             child_challenges = st.text_input("Child's Challenges (e.g., attention, sensory, social)")
             child_diagnoses = st.text_input("Previous Diagnoses (e.g., ADHD, Autism, None)")
+            any_other_information = st.text_input("Any Other Information")
             submitted = st.form_submit_button("Submit Profile")
 
         if submitted:
@@ -108,7 +109,8 @@ def main():
                     "age": child_age,
                     "strengths": child_strengths,
                     "challenges": child_challenges,
-                    "diagnoses": child_diagnoses
+                    "diagnoses": child_diagnoses,
+                    "other_info": any_other_information
                 }
                 st.success("Profile submitted!")
 
@@ -121,12 +123,13 @@ def main():
             f"Age: {profile.get('age', '')}\n\n"
             f"Strengths: {profile.get('strengths', '')}\n\n"
             f"Challenges: {profile.get('challenges', '')}\n\n"
-            f"Previous Diagnoses: {profile.get('diagnoses', '')}"
+            f"Previous Diagnoses: {profile.get('diagnoses', '')}\n]n"
+            f"Any Other Information: {profile.get('other_info', '')}\n\n"
         )
 
         # Step 2: Questionnaire
         if st.session_state['recs'] is None:
-            st.markdown("More information about your child")
+            st.markdown("Questionnaire")
             questions = generate_questions(profile)
             answers = []
             for i, q in enumerate(questions):
