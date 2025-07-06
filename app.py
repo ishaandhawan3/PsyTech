@@ -22,19 +22,20 @@ def load_activities():
     return df
 
 def ai_generate_tags(form_data, sample_acts):
-    prompt = (
-        f"You are an expert in child development and therapy. "
-        f"Given this child profile: {form_data}, "
-        f"and these example activities: {sample_acts}, "
-        "generate a new, unique activity recommendation. "
-        "For this activity, generate the following fields in the exact format below:\n"
-        "- Activity Name: (short, descriptive, unique, and relevant to the profile)\n"
-        "- Focus Area: (comma-separated, e.g. Fine Motor, Cognitive; must be specific and relevant)\n"
-        "- Conditions: (comma-separated, e.g. ADHD, Autism, etc.; must be relevant to the profile and activity)\n"
-        "- Keywords: (comma-separated, e.g. puzzles, matching, visual, etc.; must be specific to the activity)\n"
-        "Do not use dashes or placeholders. All fields must be filled with realistic, relevant values. "
-        "Format your response as a JSON dict with these exact keys: 'Activity Name', 'Focus Area', 'Conditions', 'Keywords'."
-    )
+    prompt = f"""
+            You are an expert child therapist.
+            Based on this child profile: {form_data}, and these example activities: {sample_acts},
+            generate a new activity suggestion tailored to the child.
+
+            Format your output strictly as JSON:
+            {{
+            "Activity Name": "Descriptive name",
+            "Focus Area": "e.g. Fine Motor, Cognitive",
+            "Conditions": "e.g. ADHD, Autism",
+            "Keywords": "e.g. puzzles, matching, visual"
+            }}
+            """
+
     model = genai.GenerativeModel("gemini-1.5-flash")  # Use correct model ID
     chat = model.start_chat()
 
