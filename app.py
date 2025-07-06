@@ -180,14 +180,14 @@ def main():
         profile = st.session_state['profile']
         st.markdown("#### Profile Summary")
         st.write(
-            f"Name: {profile.get('name', '')}\n"
-            f"Age: {profile.get('age', '')}\n"
-            f"Strengths: {profile.get('strengths', '')}\n"
-            f"Challenges: {profile.get('challenges', '')}\n"
-            f"Diagnoses: {profile.get('diagnoses', '')}\n"
-            f"Skills to Improve: {profile.get('skills_to_improve', '')}\n"
-            f"Sensory/Physical Limitations: {profile.get('sensory_physical', '')}\n"
-            f"Motivation: {profile.get('motivation', '')}\n"
+            f"Name: {profile.get('name', '')}\n\n"
+            f"Age: {profile.get('age', '')}\n\n"
+            f"Strengths: {profile.get('strengths', '')}\n\n"
+            f"Challenges: {profile.get('challenges', '')}\n\n"
+            f"Diagnoses: {profile.get('diagnoses', '')}\n\n"
+            f"Skills to Improve: {profile.get('skills_to_improve', '')}\n\n"
+            f"Sensory/Physical Limitations: {profile.get('sensory_physical', '')}\n\n"
+            f"Motivation: {profile.get('motivation', '')}\n\n"
             f"Other Info: {profile.get('other_info', '')}"
         )
 
