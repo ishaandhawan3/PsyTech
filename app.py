@@ -37,27 +37,25 @@ def recommend_activities(form_data, activities_df):
         num_to_generate = 5 - filtered.shape[0]
         ai_activities = []
         if genai:
-            # Use the first 3 activities as style reference
             sample_acts = filtered.head(3).to_dict(orient="records")
-            # Build a prompt that requests all metadata fields in the same format as the CSV
             prompt = (
                 f"You are an expert in child development and therapy. "
                 f"Based on this child profile: {form_data}, "
                 f"and these example activities: {sample_acts}, "
                 f"generate {num_to_generate} new, unique activity recommendations. "
-                "Each activity must include the following fields, matching the format and detail of the example activities:\n\n"
-                "- Activity Name\n\n"
-                "- Focus Area(s)\n\n"
-                "- 4–6: Early Childhood Education\n\n"
-                "- 6–8: Social, Emotional, Behavioral\n\n"
-                "- 8–10: Focus, Engagement\n\n"
-                "- 10+\n\n"
-                "- Delivery\n\n"
-                "- Analyze Progress\n\n"
-                "- Conditions\n\n"
-                "- Illness Attached\n\n"
-                "- Other Keywords\n\n"
-                "- Parent Description\n\n"
+                "Each activity must include the following fields, matching the format and order of the example activities:\n"
+                "- Activity Name\n"
+                "- Focus Area(s)\n"
+                "- 4–6: Early Childhood Education\n"
+                "- 6–8: Social, Emotional, Behavioral\n"
+                "- 8–10: Focus, Engagement\n"
+                "- 10+\n"
+                "- Delivery\n"
+                "- Analyze Progress\n"
+                "- Conditions\n"
+                "- Illness Attached\n"
+                "- Other Keywords\n"
+                "- Parent Description\n"
                 "Format your response as a JSON list of dicts, each with these exact keys."
             )
             response = genai.Client().models.generate_content(
@@ -69,12 +67,10 @@ def recommend_activities(form_data, activities_df):
                 ai_activities = json.loads(response.text)
             except Exception:
                 ai_activities = []
-        # Convert AI activities to DataFrame and append
         if ai_activities:
             ai_df = pd.DataFrame(ai_activities)
             filtered = pd.concat([filtered, ai_df], ignore_index=True)
         else:
-            # Fallback: fill with random activities not already selected
             extra = activities_df[~activities_df.index.isin(filtered.index)].sample(num_to_generate)
             filtered = pd.concat([filtered, extra])
     else:
@@ -82,7 +78,6 @@ def recommend_activities(form_data, activities_df):
     return filtered
 
 def generate_activity_details(activity_row):
-    # Show all metadata fields in the same order/format as the CSV
     fields = [
         ("Focus Area(s)", "Focus Area(s)"),
         ("4–6: Early Childhood Education", "4–6: Early Childhood Education"),
@@ -100,7 +95,7 @@ def generate_activity_details(activity_row):
     for label, col in fields:
         val = activity_row.get(col, "")
         if pd.notna(val) and str(val).strip():
-            lines.append(f"**{label}:** {val}")
+            lines.append(f"- **{label}:** {val}")
     meta_str = "\n".join(lines)
     return meta_str
 
@@ -115,7 +110,6 @@ def main():
     if 'recs' not in st.session_state:
         st.session_state['recs'] = None
 
-    # Single form for all questions
     if st.session_state['profile'] is None:
         with st.form("child_profile"):
             child_name = st.text_input("Child's Name")
@@ -146,33 +140,31 @@ def main():
                 }
                 st.success("Profile submitted!")
 
-    # Show the profile summary and recommendations if profile is submitted
     if st.session_state['profile'] is not None:
         profile = st.session_state['profile']
         st.markdown("#### Profile Summary")
         st.write(
-            f"Name: {profile.get('name', '')}\n\n"
-            f"Age: {profile.get('age', '')}\n\n"
-            f"Strengths: {profile.get('strengths', '')}\n\n"
-            f"Challenges: {profile.get('challenges', '')}\n\n"
-            f"Diagnoses: {profile.get('diagnoses', '')}\n\n"
-            f"Skills to Improve: {profile.get('skills_to_improve', '')}\n\n"
-            f"Sensory/Physical Limitations: {profile.get('sensory_physical', '')}\n\n"
-            f"Motivation: {profile.get('motivation', '')}\n\n"
+            f"Name: {profile.get('name', '')}\n"
+            f"Age: {profile.get('age', '')}\n"
+            f"Strengths: {profile.get('strengths', '')}\n"
+            f"Challenges: {profile.get('challenges', '')}\n"
+            f"Diagnoses: {profile.get('diagnoses', '')}\n"
+            f"Skills to Improve: {profile.get('skills_to_improve', '')}\n"
+            f"Sensory/Physical Limitations: {profile.get('sensory_physical', '')}\n"
+            f"Motivation: {profile.get('motivation', '')}\n"
             f"Other Info: {profile.get('other_info', '')}"
         )
 
         if st.session_state['recs'] is None:
-            # Recommend activities based on all form input
             recs = recommend_activities(profile, activities_df)
             st.session_state['recs'] = recs.reset_index(drop=True)
 
-    # Display recommendations (activity name as dropdown, metadata inside)
     if st.session_state['recs'] is not None:
         st.markdown("## Recommended Activities")
         recs = st.session_state['recs']
         for idx, row in recs.iterrows():
             with st.expander(row["Activity Name"]):
+                st.markdown("**Meta Data:**")
                 details = generate_activity_details(row)
                 st.markdown(details)
 
