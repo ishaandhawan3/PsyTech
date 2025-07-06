@@ -106,14 +106,26 @@ def recommend_activities(profile, df):
         df["Parent Description"].astype(str).str.lower().str.contains(query, na=False)
     )
 
-    csv_hits = [extract_tags(r) for _, r in df[mask].iterrows()]
+    # Extract and deduplicate by activity name
+    seen_names = set()
+    unique_csv_hits = []
+    for _, row in df[mask].iterrows():
+        tags = extract_tags(row)
+        name = tags["Activity Name"].strip().lower()
+        if name and name not in seen_names:
+            unique_csv_hits.append(tags)
+            seen_names.add(name)
 
-    # Top‑up with Gemini if needed
-    if len(csv_hits) < 5:
-        for _ in range(5 - len(csv_hits)):
-            csv_hits.append(ai_generate_tags(profile, csv_hits[:3]))
+    # If less than 5, top up with unique Gemini activities
+    while len(unique_csv_hits) < 5:
+        ai_tags = ai_generate_tags(profile, unique_csv_hits[:3])
+        ai_name = ai_tags["Activity Name"].strip().lower()
+        if ai_name and ai_name not in seen_names:
+            unique_csv_hits.append(ai_tags)
+            seen_names.add(ai_name)
 
-    return csv_hits[:5]
+    return unique_csv_hits[:5]
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -175,6 +187,8 @@ def main():
                     "other_info": other_info
                 }
                 st.success("Profile submitted!")
+    df = df.drop_duplicates(subset=["Activity Name"])
+
 
     # ── PROFILE SUMMARY + RECOMMENDATIONS ───────────────
     if st.session_state['profile'] is not None:
