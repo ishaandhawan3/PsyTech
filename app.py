@@ -144,7 +144,7 @@ def display_activity(act):
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 6. Streamlit UI
-# ─────────────────────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────────────────────-
 def main():
     st.title("Child Wellness Companion")
     st.write("Fill out the form below to get personalized activity recommendations for your child.")
