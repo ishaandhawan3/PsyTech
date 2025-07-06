@@ -21,28 +21,33 @@ def load_activities():
     df = df[df['Activity Name'].astype(str).str.strip() != '']
     return df
 
-def complete_metadata_with_ai(activity_row, form_data, sample_acts):
-    # Identify missing fields
+def generate_full_metadata_with_ai(activity_name, form_data, sample_acts):
+    # Ask Gemini to generate all fields for this activity
     required_fields = [
         "Activity Name", "Focus Area(s)", "4–6: Early Childhood Education",
         "6–8: Social, Emotional, Behavioral", "8–10: Focus, Engagement", "10+",
         "Delivery", "Analyze Progress", "Conditions", "Illness Attached",
         "Other Keywords", "Parent Description"
     ]
-    missing_fields = [field for field in required_fields if not str(activity_row.get(field, "")).strip() or activity_row.get(field, "") == "—"]
-    if not missing_fields or not genai:
-        # No missing fields or no AI available
-        return activity_row
-
-    # Build a prompt for Gemini to fill missing fields for this activity
     prompt = (
         f"You are an expert in child development and therapy. "
         f"Given this child profile: {form_data}, "
         f"and these example activities: {sample_acts}, "
-        f"complete the following activity's missing metadata fields. "
-        f"Activity so far: {dict(activity_row)}. "
-        f"Fill ONLY these fields: {missing_fields}. "
-        "Return a JSON dict with the missing fields filled, using the same keys."
+        f"generate a new activity with the name '{activity_name}'. "
+        "Fill ALL of the following fields, matching the format and order of the example activities:\n"
+        "- Activity Name\n"
+        "- Focus Area(s)\n"
+        "- 4–6: Early Childhood Education\n"
+        "- 6–8: Social, Emotional, Behavioral\n"
+        "- 8–10: Focus, Engagement\n"
+        "- 10+\n"
+        "- Delivery\n"
+        "- Analyze Progress\n"
+        "- Conditions\n"
+        "- Illness Attached\n"
+        "- Other Keywords\n"
+        "- Parent Description\n"
+        "If a field is not applicable, use a dash (—). Format your response as a JSON dict with these exact keys."
     )
     response = genai.Client().models.generate_content(
         model="gemini-2.5-flash",
@@ -51,15 +56,13 @@ def complete_metadata_with_ai(activity_row, form_data, sample_acts):
     import json
     try:
         ai_fields = json.loads(response.text)
-        for field in missing_fields:
-            val = ai_fields.get(field, "—")
-            if not str(val).strip():
-                val = "—"
-            activity_row[field] = val
+        for field in required_fields:
+            if field not in ai_fields or not str(ai_fields[field]).strip():
+                ai_fields[field] = "—"
+        return ai_fields
     except Exception:
-        for field in missing_fields:
-            activity_row[field] = "—"
-    return activity_row
+        # Fallback: fill all fields with dash except name
+        return {field: activity_name if field == "Activity Name" else "—" for field in required_fields}
 
 def recommend_activities(form_data, activities_df):
     keywords = " ".join([str(v) for v in form_data.values() if v]).lower()
@@ -71,81 +74,33 @@ def recommend_activities(form_data, activities_df):
         activities_df["Parent Description"].astype(str).str.lower().str.contains(keywords)
     )
     filtered = activities_df[mask]
-    if filtered.shape[0] < 5:
+    # If less than 5, generate more using AI (full activity, not just missing fields)
+    if filtered.shape[0] < 5 and genai:
         num_to_generate = 5 - filtered.shape[0]
+        sample_acts = filtered.head(3).to_dict(orient="records")
+        # Generate unique activity names for AI
+        ai_activity_names = [f"AI Activity {i+1}" for i in range(num_to_generate)]
         ai_activities = []
-        if genai:
-            sample_acts = filtered.head(3).to_dict(orient="records")
-            prompt = (
-                f"You are an expert in child development and therapy. "
-                f"Based on this child profile: {form_data}, "
-                f"and these example activities: {sample_acts}, "
-                f"generate {num_to_generate} new, unique activity recommendations. "
-                "Each activity must include the following fields, matching the format and order of the example activities:\n"
-                "- Activity Name\n"
-                "- Focus Area(s)\n"
-                "- 4–6: Early Childhood Education\n"
-                "- 6–8: Social, Emotional, Behavioral\n"
-                "- 8–10: Focus, Engagement\n"
-                "- 10+\n"
-                "- Delivery\n"
-                "- Analyze Progress\n"
-                "- Conditions\n"
-                "- Illness Attached\n"
-                "- Other Keywords\n"
-                "- Parent Description\n"
-                "If a field is not applicable, use a dash (—). Format your response as a JSON list of dicts, each with these exact keys."
-            )
-            response = genai.Client().models.generate_content(
-                model="gemini-2.5-flash",
-                contents=prompt
-            )
-            import json
-            try:
-                ai_activities = json.loads(response.text)
-            except Exception:
-                ai_activities = []
-        if ai_activities:
-            # Ensure all required fields are present in each AI activity
-            required_fields = [
-                "Activity Name", "Focus Area(s)", "4–6: Early Childhood Education",
-                "6–8: Social, Emotional, Behavioral", "8–10: Focus, Engagement", "10+",
-                "Delivery", "Analyze Progress", "Conditions", "Illness Attached",
-                "Other Keywords", "Parent Description"
-            ]
-            for act in ai_activities:
-                for field in required_fields:
-                    if field not in act or not str(act[field]).strip():
-                        act[field] = "—"
-            ai_df = pd.DataFrame(ai_activities)
-            filtered = pd.concat([filtered, ai_df], ignore_index=True)
-        else:
-            extra = activities_df[~activities_df.index.isin(filtered.index)].sample(num_to_generate)
-            filtered = pd.concat([filtered, extra])
+        for name in ai_activity_names:
+            ai_fields = generate_full_metadata_with_ai(name, form_data, sample_acts)
+            ai_activities.append(ai_fields)
+        ai_df = pd.DataFrame(ai_activities)
+        filtered = pd.concat([filtered, ai_df], ignore_index=True)
     else:
         filtered = filtered.head(5)
-
-    # For each activity, check for missing fields and fill with AI if needed
-    if genai:
-        sample_acts = filtered.head(3).to_dict(orient="records")
-        for idx, row in filtered.iterrows():
-            row_dict = row.to_dict()
-            completed_row = complete_metadata_with_ai(row_dict, form_data, sample_acts)
-            for key, value in completed_row.items():
-                filtered.at[idx, key] = value
-    else:
-        # If no AI, fill missing fields with dash
+    # If still not enough, fill with randoms (all fields as dash except name)
+    if filtered.shape[0] < 5:
+        num_to_generate = 5 - filtered.shape[0]
+        extra_names = [f"Extra Activity {i+1}" for i in range(num_to_generate)]
         required_fields = [
             "Activity Name", "Focus Area(s)", "4–6: Early Childhood Education",
             "6–8: Social, Emotional, Behavioral", "8–10: Focus, Engagement", "10+",
             "Delivery", "Analyze Progress", "Conditions", "Illness Attached",
             "Other Keywords", "Parent Description"
         ]
-        for idx, row in filtered.iterrows():
-            for field in required_fields:
-                val = row.get(field, "")
-                if not str(val).strip():
-                    filtered.at[idx, field] = "—"
+        extra_acts = [{field: name if field == "Activity Name" else "—" for field in required_fields} for name in extra_names]
+        extra_df = pd.DataFrame(extra_acts)
+        filtered = pd.concat([filtered, extra_df], ignore_index=True)
     return filtered
 
 def generate_activity_details(activity_row):
@@ -247,3 +202,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+  
