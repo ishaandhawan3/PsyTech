@@ -22,7 +22,6 @@ def load_activities():
     return df
 
 def recommend_activities(form_data, activities_df):
-    # Combine all form answers into a single string for keyword matching
     keywords = " ".join([str(v) for v in form_data.values() if v]).lower()
     mask = (
         activities_df["Focus Area(s)"].astype(str).str.lower().str.contains(keywords) |
@@ -32,14 +31,11 @@ def recommend_activities(form_data, activities_df):
         activities_df["Parent Description"].astype(str).str.lower().str.contains(keywords)
     )
     filtered = activities_df[mask]
-    # If less than 5, generate more using AI
     if filtered.shape[0] < 5:
         num_to_generate = 5 - filtered.shape[0]
         ai_activities = []
         if genai:
-            # Use the first 3 activities as style reference
             sample_acts = filtered.head(3).to_dict(orient="records")
-            # Build a prompt that requests all metadata fields in the same format as the CSV
             prompt = (
                 f"You are an expert in child development and therapy. "
                 f"Based on this child profile: {form_data}, "
@@ -61,17 +57,19 @@ def recommend_activities(form_data, activities_df):
                 ai_activities = json.loads(response.text)
             except Exception:
                 ai_activities = []
-        # Convert AI activities to DataFrame and append
         if ai_activities:
             ai_df = pd.DataFrame(ai_activities)
             filtered = pd.concat([filtered, ai_df], ignore_index=True)
         else:
-            # Fallback: fill with random activities not already selected
             extra = activities_df[~activities_df.index.isin(filtered.index)].sample(num_to_generate)
             filtered = pd.concat([filtered, extra])
     else:
         filtered = filtered.head(5)
+    # Ensure always returning a DataFrame
+    if not isinstance(filtered, pd.DataFrame):
+        filtered = pd.DataFrame(filtered)
     return filtered
+ 
 
 def generate_activity_details(activity_row):
     # Show all metadata fields in the same order/format as the CSV
