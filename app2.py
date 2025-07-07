@@ -97,6 +97,7 @@ Return your answer strictly as JSON (no code fences):
 def recommend_activities(profile, df):
     query = " ".join(str(v) for v in profile.values() if v).lower()
 
+    # Filter activities based on relevance
     mask = (
         df["Focus Area(s)"].astype(str).str.lower().str.contains(query, na=False) |
         df["Analyze Progress"].astype(str).str.lower().str.contains(query, na=False) |
@@ -106,28 +107,30 @@ def recommend_activities(profile, df):
         df["Parent Description"].astype(str).str.lower().str.contains(query, na=False)
     )
 
-    # 1️⃣  collect ALL unique CSV matches first
-    seen, recs = set(), []
+    # Deduplicate based on 'Activity Name'
+    seen_names = set()
+    matching_activities = []
     for _, row in df[mask].iterrows():
-        tags  = extract_tags(row)
-        name  = tags["Activity Name"].strip().lower()
-        if name and name not in seen:
-            recs.append(tags)
-            seen.add(name)
+        tags = extract_tags(row)
+        name = tags["Activity Name"].strip().lower()
+        if name and name not in seen_names:
+            matching_activities.append(tags)
+            seen_names.add(name)
 
-    # 2️⃣  if still fewer than 5, top‑up with Gemini ‑‑ **only** the remainder
-    remaining = 5 - len(recs)
+    # Calculate how many more we need
+    remaining = 5 - len(matching_activities)
+
     if remaining > 0:
-        samples_for_style = recs[:3]          # give Gemini a flavour of CSV style
+        sample_acts = matching_activities[:3] if matching_activities else []
         for _ in range(remaining):
-            ai_tags = ai_generate_tags(profile, samples_for_style)
+            ai_tags = ai_generate_tags(profile, sample_acts)
             ai_name = ai_tags["Activity Name"].strip().lower()
-            # ensure newly created name is unique
-            if ai_name and ai_name not in seen:
-                recs.append(ai_tags)
-                seen.add(ai_name)
+            if ai_name and ai_name not in seen_names:
+                matching_activities.append(ai_tags)
+                seen_names.add(ai_name)
 
-    return recs           # will now always contain exactly 5 items
+    return matching_activities[:5]
+
 
 
 
