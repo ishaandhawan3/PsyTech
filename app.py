@@ -16,17 +16,32 @@ genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 # ─────────────────────────────────────────────────────────────────────────────
 @st.cache_data
 def load_activities():
+    """
+    Load activities from activities.csv.
+
+    Expected optional extra columns:
+      • 'Age Min'  – smallest age in years (int/float)
+      • 'Age Max'  – largest age in years (int/float)
+      • 'Age Group' – alternative textual age band (e.g. "5‑7")
+
+    If no age columns exist, age filtering will be skipped gracefully.
+    """
     try:
         df = pd.read_csv("activities.csv", encoding="utf-8")
     except UnicodeDecodeError:
         df = pd.read_csv("activities.csv", encoding="latin1")
 
-    # drop totally empty “Unnamed” cols created by Excel
     df = df.loc[:, ~df.columns.str.contains("^Unnamed")]
-    # keep only rows with a non‑blank name
     df = df[df["Activity Name"].astype(str).str.strip() != ""]
-    df = df.reset_index(drop=True)
+    df = df.drop_duplicates(subset=["Activity Name"]).reset_index(drop=True)
+
+    # Ensure numeric age columns where possible
+    for col in ["Age Min", "Age Max"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
     return df
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -95,36 +110,88 @@ Return your answer strictly as JSON (no code fences):
 # 4. Main recommender – CSV first, Gemini top‑up
 # ─────────────────────────────────────────────────────────────────────────────
 def recommend_activities(profile, df):
-    query = " ".join(str(v) for v in profile.values() if v).lower()
+    """
+    Return exactly 5 unique activities.
+    • CSV rows are scored by relevance: age match, diagnosis/condition match,
+      focus area/keywords match.
+    • If fewer than 5 CSV matches, Gemini tops up the remainder.
+    """
+    seen, chosen = set(), []
 
-    mask = (
-        df["Focus Area(s)"].astype(str).str.lower().str.contains(query, na=False) |
-        df["Analyze Progress"].astype(str).str.lower().str.contains(query, na=False) |
-        df["Conditions"].astype(str).str.lower().str.contains(query, na=False) |
-        df["Illness Attached"].astype(str).str.lower().str.contains(query, na=False) |
-        df["Other Keywords"].astype(str).str.lower().str.contains(query, na=False) |
-        df["Parent Description"].astype(str).str.lower().str.contains(query, na=False)
-    )
+    # ------------------ helpers ------------------
+    def age_matches(row, child_age):
+        if "Age Min" in row and "Age Max" in row and not pd.isna(row["Age Min"]):
+            return row["Age Min"] <= child_age <= row["Age Max"]
+        if "Age Group" in row and isinstance(row["Age Group"], str):
+            # crude textual check: "5-7"  etc.
+            m = re.match(r"(\d+)\s*[-–]\s*(\d+)", row["Age Group"])
+            if m:
+                lo, hi = map(int, m.groups())
+                return lo <= child_age <= hi
+        return True  # if no age info, treat as broadly applicable
 
-    # Extract and deduplicate by activity name
+    def overlap(a, b):
+        return bool(set(a).intersection(b))
+
+    # ------------------ build relevance score ------------------
+    child_age = None
+    try:
+        child_age = float(profile.get("age", "").split()[0])
+    except (ValueError, AttributeError):
+        pass
+
+    tokens = re.findall(r"\w+", " ".join(str(v) for v in profile.values()).lower())
+
+    for _, row in df.iterrows():
+        name = str(row["Activity Name"]).strip()
+        if not name:
+            continue
+
+        score = 0
+        if child_age is not None and age_matches(row, child_age):
+            score += 2
+
+        # condition match
+        cond_text = " ".join([str(row.get("Conditions", "")),
+                              str(row.get("Illness Attached", ""))]).lower()
+        if overlap(tokens, cond_text.split()):
+            score += 2
+
+        # focus / keyword match
+        focus_kw = " ".join([str(row.get("Focus Area(s)", "")),
+                             str(row.get("Other Keywords", ""))]).lower()
+        if overlap(tokens, focus_kw.split()):
+            score += 1
+
+        if score:
+            chosen.append((score, extract_tags(row)))
+
+    # sort by descending score then keep unique names
+    chosen.sort(key=lambda x: -x[0])
+    unique_csv = []
     seen_names = set()
-    unique_csv_hits = []
-    for _, row in df[mask].iterrows():
-        tags = extract_tags(row)
-        name = tags["Activity Name"].strip().lower()
-        if name and name not in seen_names:
-            unique_csv_hits.append(tags)
-            seen_names.add(name)
+    for score, tags in chosen:
+        n = tags["Activity Name"].strip().lower()
+        if n and n not in seen_names:
+            unique_csv.append(tags)
+            seen_names.add(n)
+        if len(unique_csv) == 5:
+            break
 
-    # If less than 5, top up with unique Gemini activities
-    while len(unique_csv_hits) < 5:
-        ai_tags = ai_generate_tags(profile, unique_csv_hits[:3])
+    # ---------- top‑up with Gemini if still <5 ----------
+    remaining = 5 - len(unique_csv)
+    samples = unique_csv[:3]  # show Gemini style, if any CSV hits
+    attempts = 0
+    while remaining > 0 and attempts < 10:
+        ai_tags = ai_generate_tags(profile, samples)
         ai_name = ai_tags["Activity Name"].strip().lower()
         if ai_name and ai_name not in seen_names:
-            unique_csv_hits.append(ai_tags)
+            unique_csv.append(ai_tags)
             seen_names.add(ai_name)
+            remaining -= 1
+        attempts += 1
 
-    return unique_csv_hits[:5]
+    return unique_csv
 
 
 
