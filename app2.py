@@ -120,16 +120,19 @@ def recommend_activities(profile, df):
     # Calculate how many more we need
     remaining = 5 - len(matching_activities)
 
-    if remaining > 0:
-        sample_acts = matching_activities[:3] if matching_activities else []
-        for _ in range(remaining):
-            ai_tags = ai_generate_tags(profile, sample_acts)
-            ai_name = ai_tags["Activity Name"].strip().lower()
-            if ai_name and ai_name not in seen_names:
-                matching_activities.append(ai_tags)
-                seen_names.add(ai_name)
+    # Top up using AI until we have exactly 5 unique activities
+    sample_acts = matching_activities[:3] if matching_activities else []
+    attempts = 0
+    while len(matching_activities) < 5 and attempts < 10:  # avoid infinite loop
+        ai_tags = ai_generate_tags(profile, sample_acts)
+        ai_name = ai_tags["Activity Name"].strip().lower()
+        if ai_name and ai_name not in seen_names:
+            matching_activities.append(ai_tags)
+            seen_names.add(ai_name)
+        attempts += 1
 
     return matching_activities[:5]
+
 
 
 
