@@ -112,34 +112,33 @@ Return your answer strictly as JSON (no code fences):
 def recommend_activities(profile, df):
     """
     Return exactly 5 unique activities.
-    • CSV rows are scored by relevance: age match, diagnosis/condition match,
-      focus area/keywords match.
-    • If fewer than 5 CSV matches, Gemini tops up the remainder.
+    • Scores CSV rows by age, conditions, focus areas, keywords, strengths, and challenges.
+    • If fewer than 5 CSV matches, Gemini fills the gap.
     """
     seen, chosen = set(), []
 
-    # ------------------ helpers ------------------
     def age_matches(row, child_age):
         if "Age Min" in row and "Age Max" in row and not pd.isna(row["Age Min"]):
             return row["Age Min"] <= child_age <= row["Age Max"]
         if "Age Group" in row and isinstance(row["Age Group"], str):
-            # crude textual check: "5-7"  etc.
             m = re.match(r"(\d+)\s*[-–]\s*(\d+)", row["Age Group"])
             if m:
                 lo, hi = map(int, m.groups())
                 return lo <= child_age <= hi
-        return True  # if no age info, treat as broadly applicable
+        return True
 
     def overlap(a, b):
         return bool(set(a).intersection(b))
 
-    # ------------------ build relevance score ------------------
+    # Extract structured profile info
     child_age = None
     try:
         child_age = float(profile.get("age", "").split()[0])
     except (ValueError, AttributeError):
         pass
 
+    strengths = re.findall(r"\w+", profile.get("strengths", "").lower())
+    challenges = re.findall(r"\w+", profile.get("challenges", "").lower())
     tokens = re.findall(r"\w+", " ".join(str(v) for v in profile.values()).lower())
 
     for _, row in df.iterrows():
@@ -151,22 +150,28 @@ def recommend_activities(profile, df):
         if child_age is not None and age_matches(row, child_age):
             score += 2
 
-        # condition match
+        # Match on diagnoses
         cond_text = " ".join([str(row.get("Conditions", "")),
                               str(row.get("Illness Attached", ""))]).lower()
         if overlap(tokens, cond_text.split()):
             score += 2
 
-        # focus / keyword match
+        # Match on focus areas / keywords
         focus_kw = " ".join([str(row.get("Focus Area(s)", "")),
                              str(row.get("Other Keywords", ""))]).lower()
         if overlap(tokens, focus_kw.split()):
             score += 1
 
+        # Bonus for strengths and challenges match
+        if overlap(strengths, focus_kw.split()):
+            score += 1
+        if overlap(challenges, focus_kw.split()):
+            score += 1
+
         if score:
             chosen.append((score, extract_tags(row)))
 
-    # sort by descending score then keep unique names
+    # Sort by score and remove duplicates
     chosen.sort(key=lambda x: -x[0])
     unique_csv = []
     seen_names = set()
@@ -178,9 +183,9 @@ def recommend_activities(profile, df):
         if len(unique_csv) == 5:
             break
 
-    # ---------- top‑up with Gemini if still <5 ----------
+    # Top up with Gemini if needed
     remaining = 5 - len(unique_csv)
-    samples = unique_csv[:3]  # show Gemini style, if any CSV hits
+    samples = unique_csv[:3]
     attempts = 0
     while remaining > 0 and attempts < 10:
         ai_tags = ai_generate_tags(profile, samples)
@@ -192,8 +197,6 @@ def recommend_activities(profile, df):
         attempts += 1
 
     return unique_csv
-
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 5. Display helper
