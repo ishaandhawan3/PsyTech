@@ -28,35 +28,27 @@ def get_db_connection():
 def setup_database():
     conn = get_db_connection()
     cur = conn.cursor()
+    cur.execute("DROP TABLE IF EXISTS users CASCADE;")
+    cur.execute("DROP TABLE IF EXISTS articles CASCADE;")
+    conn.commit()
+    
     cur.execute('''
-        CREATE TABLE IF NOT EXISTS users (
+        CREATE TABLE users (
             id SERIAL PRIMARY KEY,
             name TEXT,
             interests TEXT
         );
     ''')
     cur.execute('''
-        CREATE TABLE IF NOT EXISTS articles (
+        CREATE TABLE articles (
             id SERIAL PRIMARY KEY,
             title TEXT,
             url TEXT UNIQUE,
             summary TEXT,
-            categories TEXT
+            categories TEXT,
+            scraped_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
     ''')
-    # Ensure scraped_at column exists
-    cur.execute("""
-        DO $$
-        BEGIN
-            IF NOT EXISTS (
-                SELECT 1 FROM information_schema.columns 
-                WHERE table_name='articles' AND column_name='scraped_at'
-            ) THEN
-                ALTER TABLE articles ADD COLUMN scraped_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
-            END IF;
-        END
-        $$;
-    """)
     conn.commit()
     cur.close()
     conn.close()
