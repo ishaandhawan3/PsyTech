@@ -130,8 +130,45 @@ setup_database()
 
 with st.form("interest_form"):
     name = st.text_input("Enter your name")
-    interests = st.text_input("What are your parenting interests? (comma-separated)")
+    
+    interest_options = [
+        "Special Needs",
+        "Child Behavior",
+        "Parent-Child Bonding",
+        "Emotional Intelligence",
+        "Learning Disabilities",
+        "Autism",
+        "ADHD",
+        "Speech Development",
+        "Social Skills",
+        "Tantrums & Discipline",
+        "Child Development"
+    ]
+    
+    selected_interests = st.multiselect(
+        "Select your parenting interests:",
+        options=interest_options,
+        help="You can choose multiple interests"
+    )
+    
     submitted = st.form_submit_button("Submit")
+    
+if submitted:
+    interests_str = ", ".join(selected_interests)
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("INSERT INTO users (name, interests) VALUES (%s, %s)", (name, interests_str))
+    conn.commit()
+    cur.close()
+    conn.close()
+    st.success("✅ Interests saved! Scraping articles for you...")
+
+    with st.spinner("🔄 Scraping resources and articles..."):
+        scrape_kidshealth(interests_str)
+        scrape_rcn(interests_str)
+        scrape_understood(interests_str)
+    st.success("🎉 Articles scraped and stored!")
+
 
 if submitted:
     conn = get_db_connection()
