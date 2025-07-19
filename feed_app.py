@@ -9,14 +9,14 @@ import re
 
 # Load secrets from Streamlit secrets file
 DB_CONFIG = {
-    'host': st.secrets["db_host"],
-    'dbname': st.secrets["db_name"],
-    'user': st.secrets["db_user"],
-    'password': st.secrets["db_password"],
-    'port': st.secrets["db_port"]
+    'host': st.secrets["DB_HOST"],
+    'dbname': st.secrets["DB_NAME"],
+    'user': st.secrets["DB_USER"],
+    'password': st.secrets["DB_PASSWORD"],
+    'port': 5432
 }
 
-GEMINI_API_KEY = st.secrets["gemini_api_key"]
+GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 
 def get_db_connection():
     return psycopg2.connect(**DB_CONFIG)
