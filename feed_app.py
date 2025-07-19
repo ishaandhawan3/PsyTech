@@ -13,7 +13,7 @@ DB_CONFIG = {
     'dbname': st.secrets["db_name"],
     'user': st.secrets["db_user"],
     'password': st.secrets["db_password"],
-    'port': st.secrets["db_port"]
+    'port': 5432
 }
 
 GEMINI_API_KEY = st.secrets["gemini_api_key"]
