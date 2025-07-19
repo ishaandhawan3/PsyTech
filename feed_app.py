@@ -147,7 +147,7 @@ def main():
     name = st.text_input("Enter your name:")
     interests = st.multiselect("Choose your parenting interests:", [
         "Special Needs", "ADHD", "Autism", "Child Bonding", "Positive Parenting",
-        "Teen Development", "Emotional Intelligence", "Child Behavior", "Parenting Tips"
+        "Teen Development", "Emotional Intelligence", "Child Behavior", "Parenting Tips", "Child Psychology", "Parenting Challenges", "Child Safety", "Healthy Parenting", "Parenting Resources", "Parenting Support", "Child Development", "Parenting Education", "Parenting Strategies", "Parenting Styles", "Parenting Advice", "Parenting Skills", "Parenting Techniques"
     ])
 
     if st.button("Submit") and name and interests:
