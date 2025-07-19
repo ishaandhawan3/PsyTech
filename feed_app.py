@@ -9,10 +9,10 @@ import re
 
 # Load credentials from Streamlit secrets
 DB_CONFIG = {
-    'host': st.secrets["db_host"],
-    'dbname': st.secrets["db_name"],
-    'user': st.secrets["db_user"],
-    'password': st.secrets["db_password"],
+    'host': st.secrets["DB_HOST"],
+    'dbname': st.secrets["DB_NAME"],
+    'user': st.secrets["DB_USER"],
+    'password': st.secrets["DB_PASSWORD"],
     'port': 5432
 }
 
