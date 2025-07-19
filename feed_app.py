@@ -41,13 +41,26 @@ def setup_database():
             title TEXT,
             url TEXT UNIQUE,
             summary TEXT,
-            categories TEXT,
-            scraped_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            categories TEXT
         );
     ''')
+    # Ensure scraped_at column exists
+    cur.execute("""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns 
+                WHERE table_name='articles' AND column_name='scraped_at'
+            ) THEN
+                ALTER TABLE articles ADD COLUMN scraped_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+            END IF;
+        END
+        $$;
+    """)
     conn.commit()
     cur.close()
     conn.close()
+
 
 # Gemini Pro categorization
 def categorize_article_with_llm(title, summary, interests):
