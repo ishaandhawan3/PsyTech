@@ -13,10 +13,14 @@ DB_CONFIG = {
     'dbname': st.secrets["DB_NAME"],
     'user': st.secrets["DB_USER"],
     'password': st.secrets["DB_PASSWORD"],
-    'port': 5432,  # Default PostgreSQL port
+    'port': 5432
 }
 
 GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
+
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36"
+}
 
 def get_db_connection():
     return psycopg2.connect(**DB_CONFIG)
@@ -46,12 +50,12 @@ def setup_database():
     cur.close()
     conn.close()
 
-# Scraper functions with working debug logs
+# Scraper functions with debug logs and headers
 def scrape_understood():
     url = "https://www.understood.org/en/articles"
     articles = []
     try:
-        response = requests.get(url, timeout=10)
+        response = requests.get(url, headers=HEADERS, timeout=10)
         soup = BeautifulSoup(response.content, "html.parser")
         for a in soup.select("a[class*='titleLink']"):
             title = a.get_text(strip=True)
@@ -66,7 +70,7 @@ def scrape_raisingchildren():
     url = "https://raisingchildren.net.au/guides/a-z-health-reference"
     articles = []
     try:
-        response = requests.get(url, timeout=10)
+        response = requests.get(url, headers=HEADERS, timeout=10)
         soup = BeautifulSoup(response.content, "html.parser")
         for li in soup.select(".listItem-title a"):
             title = li.text.strip()
@@ -81,7 +85,7 @@ def scrape_autismspeaks():
     url = "https://www.autismspeaks.org/expert-opinion"
     articles = []
     try:
-        response = requests.get(url, timeout=10)
+        response = requests.get(url, headers=HEADERS, timeout=10)
         soup = BeautifulSoup(response.content, "html.parser")
         for card in soup.select(".card-title a"):
             title = card.text.strip()
@@ -98,7 +102,7 @@ def scrape_verywellfamily():
     url = "https://www.verywellfamily.com/special-needs-parents-4164367"
     articles = []
     try:
-        response = requests.get(url, timeout=10)
+        response = requests.get(url, headers=HEADERS, timeout=10)
         soup = BeautifulSoup(response.content, "html.parser")
         for a in soup.select("a.comp.card--regular"):
             title = a.get("aria-label") or a.text.strip()
@@ -116,7 +120,7 @@ def scrape_sensationalbrain():
     url = "https://sensationalbrain.com/blog/"
     articles = []
     try:
-        response = requests.get(url, timeout=10)
+        response = requests.get(url, headers=HEADERS, timeout=10)
         soup = BeautifulSoup(response.content, "html.parser")
         for h2 in soup.select(".post-title a"):
             title = h2.text.strip()
