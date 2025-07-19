@@ -3,14 +3,11 @@ import google.generativeai as genai
 import psycopg2
 import requests
 from bs4 import BeautifulSoup
-from datetime import datetime
-from urllib.parse import urlparse
 
 # Gemini Configuration
 genai.configure(api_key="your-gemini-api-key")
 
 # Neon DB Config
-# Neon DB Config from Streamlit secrets
 DB_CONFIG = {
     "dbname": st.secrets["DB_NAME"],
     "user": st.secrets["DB_USER"],
@@ -19,12 +16,9 @@ DB_CONFIG = {
     "port": 5432
 }
 
-
-# Connect to DB
 def get_db_connection():
     return psycopg2.connect(**DB_CONFIG)
 
-# Create required tables
 def setup_database():
     conn = get_db_connection()
     cur = conn.cursor()
@@ -53,8 +47,6 @@ def setup_database():
     cur.close()
     conn.close()
 
-
-# Gemini Pro categorization
 def categorize_article_with_llm(title, summary, interests):
     prompt = f"""
     Classify the following article into parenting-related categories such as "special needs", "child behavior", "parent-child bonding", "emotional intelligence", etc.
@@ -68,7 +60,6 @@ def categorize_article_with_llm(title, summary, interests):
     tags = response.text.strip().split(",")
     return [tag.strip() for tag in tags]
 
-# Helper to insert article if not duplicate
 def insert_article(title, url, summary, categories):
     conn = get_db_connection()
     cur = conn.cursor()
@@ -85,7 +76,6 @@ def insert_article(title, url, summary, categories):
         cur.close()
         conn.close()
 
-# Scraper 1 - KidsHealth
 def scrape_kidshealth(interests):
     url = "https://kidshealth.org/en/parents/"
     resp = requests.get(url)
@@ -98,7 +88,6 @@ def scrape_kidshealth(interests):
         categories = categorize_article_with_llm(title, summary, interests)
         insert_article(title, full_url, summary, categories)
 
-# Scraper 2 - Raising Children Network
 def scrape_rcn(interests):
     url = "https://raisingchildren.net.au/guides/a-z-health-reference"
     resp = requests.get(url)
@@ -110,7 +99,6 @@ def scrape_rcn(interests):
         categories = categorize_article_with_llm(title, summary, interests)
         insert_article(title, full_url, summary, categories)
 
-# Scraper 3 - Understood.org
 def scrape_understood(interests):
     url = "https://www.understood.org/en/articles"
     resp = requests.get(url)
@@ -130,29 +118,12 @@ setup_database()
 
 with st.form("interest_form"):
     name = st.text_input("Enter your name")
-    
-    interest_options = [
-        "Special Needs",
-        "Child Behavior",
-        "Parent-Child Bonding",
-        "Emotional Intelligence",
-        "Learning Disabilities",
-        "Autism",
-        "ADHD",
-        "Speech Development",
-        "Social Skills",
-        "Tantrums & Discipline",
-        "Child Development"
-    ]
-    
     selected_interests = st.multiselect(
-        "Select your parenting interests:",
-        options=interest_options,
-        help="You can choose multiple interests"
+        "Select your parenting interests",
+        ["Special Needs", "Child Behavior", "Emotional Intelligence", "Parenting Tips", "Mental Health", "Parent-Child Bonding"]
     )
-    
     submitted = st.form_submit_button("Submit")
-    
+
 if submitted:
     interests_str = ", ".join(selected_interests)
     conn = get_db_connection()
@@ -167,22 +138,6 @@ if submitted:
         scrape_kidshealth(interests_str)
         scrape_rcn(interests_str)
         scrape_understood(interests_str)
-    st.success("🎉 Articles scraped and stored!")
-
-
-if submitted:
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute("INSERT INTO users (name, interests) VALUES (%s, %s)", (name, interests))
-    conn.commit()
-    cur.close()
-    conn.close()
-    st.success("✅ Interests saved! Scraping articles for you...")
-
-    with st.spinner("🔄 Scraping resources and articles..."):
-        scrape_kidshealth(interests)
-        scrape_rcn(interests)
-        scrape_understood(interests)
     st.success("🎉 Articles scraped and stored!")
 
 # Show personalized feed
