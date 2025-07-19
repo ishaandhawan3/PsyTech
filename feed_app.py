@@ -16,7 +16,7 @@ DB_CONFIG = {
     "user": st.secrets["DB_USER"],
     "password": st.secrets["DB_PASSWORD"],
     "host": st.secrets["DB_HOST"],
-    "port": st.secrets["DB_PORT"]
+    "port": 5432
 }
 
 
