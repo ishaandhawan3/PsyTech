@@ -16,7 +16,7 @@ DB_CONFIG = {
     'port': 5432
 }
 
-GEMINI_API_KEY = st.secrets["gemini_api_key"]
+GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 
 # Initialize Gemini
 genai.configure(api_key=GEMINI_API_KEY)
