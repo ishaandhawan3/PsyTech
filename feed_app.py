@@ -13,7 +13,7 @@ DB_CONFIG = {
     'dbname': st.secrets["DB_NAME"],
     'user': st.secrets["DB_USER"],
     'password': st.secrets["DB_PASSWORD"],
-    'port': 5432
+    'port': 5432,  # Default PostgreSQL port
 }
 
 GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
@@ -46,54 +46,59 @@ def setup_database():
     cur.close()
     conn.close()
 
-# Scraper functions (unchanged logic)
+# Scraper functions with working debug logs
 def scrape_understood():
     url = "https://www.understood.org/en/articles"
     articles = []
     try:
-        response = requests.get(url)
+        response = requests.get(url, timeout=10)
         soup = BeautifulSoup(response.content, "html.parser")
-        for a in soup.select("a.ArticleCard_titleLink__3J1Hy"):
-            title = a.text.strip()
+        for a in soup.select("a[class*='titleLink']"):
+            title = a.get_text(strip=True)
             link = "https://www.understood.org" + a.get("href")
             articles.append({"title": title, "url": link})
-    except:
-        pass
+        st.write(f"✅ Understood: {len(articles)} articles scraped.")
+    except Exception as e:
+        st.warning(f"❌ Understood scrape failed: {e}")
     return articles
 
 def scrape_raisingchildren():
     url = "https://raisingchildren.net.au/guides/a-z-health-reference"
     articles = []
     try:
-        response = requests.get(url)
+        response = requests.get(url, timeout=10)
         soup = BeautifulSoup(response.content, "html.parser")
-        for li in soup.select(".listItem-title > a"):
+        for li in soup.select(".listItem-title a"):
             title = li.text.strip()
             link = "https://raisingchildren.net.au" + li.get("href")
             articles.append({"title": title, "url": link})
-    except:
-        pass
+        st.write(f"✅ RaisingChildren: {len(articles)} articles scraped.")
+    except Exception as e:
+        st.warning(f"❌ RaisingChildren scrape failed: {e}")
     return articles
 
 def scrape_autismspeaks():
     url = "https://www.autismspeaks.org/expert-opinion"
     articles = []
     try:
-        response = requests.get(url)
+        response = requests.get(url, timeout=10)
         soup = BeautifulSoup(response.content, "html.parser")
-        for card in soup.select(".view-content .card-title a"):
+        for card in soup.select(".card-title a"):
             title = card.text.strip()
-            link = "https://www.autismspeaks.org" + card.get("href")
+            link = card.get("href")
+            if not link.startswith("http"):
+                link = "https://www.autismspeaks.org" + link
             articles.append({"title": title, "url": link})
-    except:
-        pass
+        st.write(f"✅ AutismSpeaks: {len(articles)} articles scraped.")
+    except Exception as e:
+        st.warning(f"❌ AutismSpeaks scrape failed: {e}")
     return articles
 
 def scrape_verywellfamily():
     url = "https://www.verywellfamily.com/special-needs-parents-4164367"
     articles = []
     try:
-        response = requests.get(url)
+        response = requests.get(url, timeout=10)
         soup = BeautifulSoup(response.content, "html.parser")
         for a in soup.select("a.comp.card--regular"):
             title = a.get("aria-label") or a.text.strip()
@@ -102,22 +107,24 @@ def scrape_verywellfamily():
                 link = "https://www.verywellfamily.com" + link
             if title and link:
                 articles.append({"title": title.strip(), "url": link})
-    except:
-        pass
+        st.write(f"✅ VeryWellFamily: {len(articles)} articles scraped.")
+    except Exception as e:
+        st.warning(f"❌ VeryWellFamily scrape failed: {e}")
     return articles
 
 def scrape_sensationalbrain():
     url = "https://sensationalbrain.com/blog/"
     articles = []
     try:
-        response = requests.get(url)
+        response = requests.get(url, timeout=10)
         soup = BeautifulSoup(response.content, "html.parser")
         for h2 in soup.select(".post-title a"):
             title = h2.text.strip()
             link = h2.get("href")
             articles.append({"title": title, "url": link})
-    except:
-        pass
+        st.write(f"✅ SensationalBrain: {len(articles)} articles scraped.")
+    except Exception as e:
+        st.warning(f"❌ SensationalBrain scrape failed: {e}")
     return articles
 
 ALL_SCRAPERS = [
@@ -136,7 +143,7 @@ def categorize_and_summarize(article):
     try:
         prompt = f"Categorize this article: {article['title']} ({article['url']})"
         response = model.generate_content(prompt)
-        categories = re.findall(r"\\w+", response.text.lower())
+        categories = re.findall(r"\w+", response.text.lower())
 
         summary_prompt = f"Summarize this article: {article['title']} ({article['url']})"
         summary = model.generate_content(summary_prompt).text.strip()
