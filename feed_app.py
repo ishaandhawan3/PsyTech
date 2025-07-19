@@ -10,13 +10,15 @@ from urllib.parse import urlparse
 genai.configure(api_key="your-gemini-api-key")
 
 # Neon DB Config
+# Neon DB Config from Streamlit secrets
 DB_CONFIG = {
-    "dbname": "your-db-name",
-    "user": "your-user",
-    "password": "your-password",
-    "host": "your-db-host",
-    "port": 5432
+    "dbname": st.secrets["DB_NAME"],
+    "user": st.secrets["DB_USER"],
+    "password": st.secrets["DB_PASSWORD"],
+    "host": st.secrets["DB_HOST"],
+    "port": st.secrets["DB_PORT"]
 }
+
 
 # Connect to DB
 def get_db_connection():
