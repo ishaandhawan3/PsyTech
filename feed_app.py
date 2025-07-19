@@ -1,185 +1,156 @@
 import streamlit as st
+import google.generativeai as genai
 import psycopg2
 import requests
 from bs4 import BeautifulSoup
-import google.generativeai as genai
+from datetime import datetime
+from urllib.parse import urlparse
 
-# --- CONFIG ---
+# Gemini Configuration
+genai.configure(api_key="your-gemini-api-key")
+
+# Neon DB Config
 DB_CONFIG = {
-    'host': st.secrets["DB_HOST"],
-    'dbname': st.secrets["DB_NAME"],
-    'user': st.secrets["DB_USER"],
-    'password': st.secrets["DB_PASSWORD"],
-    'sslmode': 'require'
+    "dbname": "your-db-name",
+    "user": "your-user",
+    "password": "your-password",
+    "host": "your-db-host",
+    "port": 5432
 }
 
-GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
-genai.configure(api_key=GEMINI_API_KEY)
-
-# --- DATABASE SETUP ---
-def connect_db():
+# Connect to DB
+def get_db_connection():
     return psycopg2.connect(**DB_CONFIG)
 
-def create_tables():
-    conn = connect_db()
+# Create required tables
+def setup_database():
+    conn = get_db_connection()
     cur = conn.cursor()
     cur.execute('''
         CREATE TABLE IF NOT EXISTS users (
             id SERIAL PRIMARY KEY,
             name TEXT,
-            interests TEXT[]
+            interests TEXT
         );
+    ''')
+    cur.execute('''
         CREATE TABLE IF NOT EXISTS articles (
             id SERIAL PRIMARY KEY,
             title TEXT,
-            link TEXT,
+            url TEXT UNIQUE,
             summary TEXT,
-            categories TEXT[],
-            user_id INT REFERENCES users(id)
+            categories TEXT,
+            scraped_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
     ''')
     conn.commit()
     cur.close()
     conn.close()
 
-# --- LLM CATEGORY TAGGING ---
+# Gemini Pro categorization
 def categorize_article_with_llm(title, summary, interests):
     prompt = f"""
-    Classify this article into parenting-related categories like "special needs", "child behavior", "emotional intelligence", etc.
+    Classify the following article into parenting-related categories such as "special needs", "child behavior", "parent-child bonding", "emotional intelligence", etc.
     Title: {title}
     Summary: {summary}
     User Interests: {interests}
-    Return a list of tags only, separated by commas.
+    Return a list of relevant tags only, separated by commas.
     """
     model = genai.GenerativeModel("gemini-pro")
-    try:
-        response = model.generate_content(prompt)
-        tags = response.text.strip().split(",")
-        return [tag.strip() for tag in tags if tag.strip()]
-    except Exception as e:
-        return ["Uncategorized"]
+    response = model.generate_content(prompt)
+    tags = response.text.strip().split(",")
+    return [tag.strip() for tag in tags]
 
-# --- SCRAPERS ---
-def scrape_kidshealth():
-    url = "https://kidshealth.org/en/parents/"
-    response = requests.get(url)
-    soup = BeautifulSoup(response.text, "html.parser")
-    articles = []
-    for item in soup.select(".content-list a"):
-        title = item.get_text(strip=True)
-        link = f"https://kidshealth.org{item.get('href')}"
-        articles.append((title, "", link))
-    return articles
-
-def scrape_cdcgov():
-    url = "https://www.cdc.gov/parents/index.html"
-    response = requests.get(url)
-    soup = BeautifulSoup(response.text, "html.parser")
-    articles = []
-    for item in soup.select("ul.medium li a"):
-        title = item.get_text(strip=True)
-        link = "https://www.cdc.gov" + item.get("href")
-        articles.append((title, "", link))
-    return articles
-
-def scrape_nichd():
-    url = "https://www.nichd.nih.gov/newsroom/news"
-    response = requests.get(url)
-    soup = BeautifulSoup(response.text, "html.parser")
-    articles = []
-    for item in soup.select("div.teaser__content a"):
-        title = item.get_text(strip=True)
-        link = "https://www.nichd.nih.gov" + item.get("href")
-        articles.append((title, "", link))
-    return articles
-
-def scrape_understood():
-    url = "https://www.understood.org/articles"
-    response = requests.get(url)
-    soup = BeautifulSoup(response.text, "html.parser")
-    articles = []
-    for item in soup.select("a.card-content-link"):
-        title = item.get_text(strip=True)
-        link = "https://www.understood.org" + item.get("href")
-        articles.append((title, "", link))
-    return articles
-
-def scrape_childwelfare():
-    url = "https://www.childwelfare.gov/topics/parenting/"
-    response = requests.get(url)
-    soup = BeautifulSoup(response.text, "html.parser")
-    articles = []
-    for link in soup.select("a.resource-link"):
-        title = link.get_text(strip=True)
-        href = link.get("href")
-        articles.append((title, "", f"https://www.childwelfare.gov{href}"))
-    return articles
-
-def scrape_all_sources():
-    return (
-        scrape_kidshealth() +
-        scrape_cdcgov() +
-        scrape_nichd() +
-        scrape_understood() +
-        scrape_childwelfare()
-    )
-
-# --- STORE ARTICLES ---
-def store_articles(user_id, interests):
-    conn = connect_db()
+# Helper to insert article if not duplicate
+def insert_article(title, url, summary, categories):
+    conn = get_db_connection()
     cur = conn.cursor()
-    articles = scrape_all_sources()
-    for title, summary, link in articles:
+    try:
+        cur.execute("""
+            INSERT INTO articles (title, url, summary, categories) 
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (url) DO NOTHING;
+        """, (title, url, summary, ", ".join(categories)))
+        conn.commit()
+    except Exception as e:
+        print("DB Insert Error:", e)
+    finally:
+        cur.close()
+        conn.close()
+
+# Scraper 1 - KidsHealth
+def scrape_kidshealth(interests):
+    url = "https://kidshealth.org/en/parents/"
+    resp = requests.get(url)
+    soup = BeautifulSoup(resp.content, "html.parser")
+    for a in soup.select(".content-list a"):
+        href = a.get("href")
+        full_url = f"https://kidshealth.org{href}" if href.startswith("/") else href
+        title = a.get_text(strip=True)
+        summary = title
         categories = categorize_article_with_llm(title, summary, interests)
-        cur.execute('''
-            INSERT INTO articles (title, link, summary, categories, user_id)
-            VALUES (%s, %s, %s, %s, %s)
-        ''', (title, link, summary, categories, user_id))
+        insert_article(title, full_url, summary, categories)
+
+# Scraper 2 - Raising Children Network
+def scrape_rcn(interests):
+    url = "https://raisingchildren.net.au/guides/a-z-health-reference"
+    resp = requests.get(url)
+    soup = BeautifulSoup(resp.content, "html.parser")
+    for item in soup.select(".list-item a"):
+        title = item.get_text(strip=True)
+        full_url = f"https://raisingchildren.net.au{item.get('href')}"
+        summary = title
+        categories = categorize_article_with_llm(title, summary, interests)
+        insert_article(title, full_url, summary, categories)
+
+# Scraper 3 - Understood.org
+def scrape_understood(interests):
+    url = "https://www.understood.org/en/articles"
+    resp = requests.get(url)
+    soup = BeautifulSoup(resp.content, "html.parser")
+    for item in soup.select("a[data-testid='card-link']"):
+        full_url = "https://www.understood.org" + item.get("href")
+        title = item.get_text(strip=True)
+        summary = title
+        categories = categorize_article_with_llm(title, summary, interests)
+        insert_article(title, full_url, summary, categories)
+
+# Streamlit App
+st.set_page_config(page_title="Personalized Parenting Feed", layout="wide")
+st.title("🧠 Parenting Support Feed")
+
+setup_database()
+
+with st.form("interest_form"):
+    name = st.text_input("Enter your name")
+    interests = st.text_input("What are your parenting interests? (comma-separated)")
+    submitted = st.form_submit_button("Submit")
+
+if submitted:
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("INSERT INTO users (name, interests) VALUES (%s, %s)", (name, interests))
     conn.commit()
     cur.close()
     conn.close()
+    st.success("✅ Interests saved! Scraping articles for you...")
 
-# --- STREAMLIT APP ---
-def main():
-    st.title("🧒 Personalized Parenting Feed")
-    create_tables()
+    with st.spinner("🔄 Scraping resources and articles..."):
+        scrape_kidshealth(interests)
+        scrape_rcn(interests)
+        scrape_understood(interests)
+    st.success("🎉 Articles scraped and stored!")
 
-    name = st.text_input("Enter your name:")
-    interests = st.multiselect("Choose your parenting interests:", [
-        "Special Needs", "ADHD", "Autism", "Child Bonding", "Positive Parenting",
-        "Teen Development", "Emotional Intelligence", "Child Behavior", "Parenting Tips", "Child Psychology", "Parenting Challenges", "Child Safety", "Healthy Parenting", "Parenting Resources", "Parenting Support", "Child Development", "Parenting Education", "Parenting Strategies", "Parenting Styles", "Parenting Advice", "Parenting Skills", "Parenting Techniques"
-    ])
+# Show personalized feed
+st.subheader("📰 Your Personalized Feed")
+conn = get_db_connection()
+cur = conn.cursor()
+cur.execute("SELECT title, url, summary, categories FROM articles ORDER BY scraped_at DESC LIMIT 15")
+rows = cur.fetchall()
+cur.close()
+conn.close()
 
-    if st.button("Submit") and name and interests:
-        conn = connect_db()
-        cur = conn.cursor()
-        cur.execute("INSERT INTO users (name, interests) VALUES (%s, %s) RETURNING id", (name, interests))
-        user_id = cur.fetchone()[0]
-        conn.commit()
-        cur.close()
-        conn.close()
-
-        st.success("✅ Interests saved! Scraping articles now...")
-        store_articles(user_id, interests)
-
-    st.header("📚 Your Personalized Feed")
-    if name:
-        conn = connect_db()
-        cur = conn.cursor()
-        cur.execute("SELECT id FROM users WHERE name=%s", (name,))
-        row = cur.fetchone()
-        if row:
-            user_id = row[0]
-            cur.execute("SELECT title, link, categories FROM articles WHERE user_id=%s", (user_id,))
-            articles = cur.fetchall()
-            if articles:
-                for title, link, categories in articles:
-                    st.markdown(f"### [{title}]({link})")
-                    st.write(f"**Tags**: {', '.join(categories)}")
-            else:
-                st.info("No articles yet. Click submit to generate your feed.")
-        cur.close()
-        conn.close()
-
-if __name__ == "__main__":
-    main()
+for title, url, summary, categories in rows:
+    st.markdown(f"### [{title}]({url})")
+    st.markdown(f"**Categories:** {categories}")
+    st.markdown("---")
