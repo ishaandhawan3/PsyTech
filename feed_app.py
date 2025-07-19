@@ -25,7 +25,6 @@ genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel("gemini-pro")
 
 # Set up Selenium driver with headless Chrome
-@st.cache_resource
 def init_driver():
     chrome_options = Options()
     chrome_options.add_argument("--headless")
