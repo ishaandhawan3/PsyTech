@@ -71,6 +71,6 @@ def store_resources(resources):
 
 if __name__ == "__main__":
     setup_database()
-    resources = scrape_parentcircle()
+    resources = scrape_verywellfamily()
     store_resources(resources)
     print("✅ Resources scraped and stored!")
