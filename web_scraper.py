@@ -30,26 +30,28 @@ def setup_database():
     cur.close()
     conn.close()
 
-def scrape_verywellfamily():
-    url = "https://www.verywellfamily.com/"
+def scrape_parenting_com():
+    url = "https://www.parenting.com/"
     headers = {"User-Agent": "Mozilla/5.0"}
     response = requests.get(url, headers=headers)
-    soup = BeautifulSoup(response.text, "html.parser")
+    soup = BeautifulSoup(response.content, "html.parser")
+
     articles = []
 
-    for item in soup.find_all("a", href=True):
-        href = item["href"]
-        title = item.get_text(strip=True)
-        if title and "/parenting-" in href:  # example pattern
-            full_url = href if href.startswith("http") else f"https://www.verywellfamily.com{href}"
+    for article in soup.select("a.card-article-link"):
+        title = article.get("title") or article.get_text(strip=True)
+        href = article.get("href")
+        full_url = href if href.startswith("http") else f"https://www.parenting.com{href}"
+        if title and href:
             articles.append({
-                "title": title,
-                "url": full_url,
+                "title": title.strip(),
+                "url": full_url.strip(),
                 "summary": ""
             })
 
-    print("Scraped Articles:", articles[:5])
+    print(f"Scraped Articles: {articles[:5]}")
     return articles
+
 
 
 def store_resources(resources):
@@ -71,6 +73,6 @@ def store_resources(resources):
 
 if __name__ == "__main__":
     setup_database()
-    resources = scrape_verywellfamily()
+    resources = scrape_parenting_com()
     store_resources(resources)
     print("✅ Resources scraped and stored!")
