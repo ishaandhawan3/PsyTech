@@ -5,13 +5,14 @@ import os
 
 # Read from Streamlit secrets or environment variables
 DB_CONFIG = {
-    "host": os.getenv("DB_HOST"),
+    "dbname": "neondb",
+    "user": "neondb_owner",
+    "password": "npg_NRo1IkM7bQrj",
+    "host": "ep-morning-wildflower-a1wn2f3t-pooler.ap-southeast-1.aws.neon.tech",
     "port": 5432,
-    "dbname": os.getenv("DB_NAME"),
-    "user": os.getenv("DB_USER"),
-    "password": os.getenv("DB_PASSWORD"),
     "sslmode": "require"
 }
+
 
 def get_db_connection():
     return psycopg2.connect(**DB_CONFIG)
