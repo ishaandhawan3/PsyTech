@@ -30,29 +30,25 @@ def setup_database():
     cur.close()
     conn.close()
 
-def scrape_parentcircle():
-    url = "https://www.parentcircle.com/"
-    headers = {
-        "User-Agent": "Mozilla/5.0"
-    }
+def scrape_verywellfamily():
+    url = "https://www.verywellfamily.com/"
+    headers = {"User-Agent": "Mozilla/5.0"}
     response = requests.get(url, headers=headers)
     soup = BeautifulSoup(response.text, "html.parser")
     articles = []
 
-    # Try multiple selectors based on observed structure
     for item in soup.find_all("a", href=True):
         href = item["href"]
-        if "/article/" in href:
-            title = item.get_text(strip=True)
-            full_url = href if href.startswith("http") else f"https://www.parentcircle.com{href}"
-            if title:
-                articles.append({
-                    "title": title,
-                    "url": full_url,
-                    "summary": ""
-                })
+        title = item.get_text(strip=True)
+        if title and "/parenting-" in href:  # example pattern
+            full_url = href if href.startswith("http") else f"https://www.verywellfamily.com{href}"
+            articles.append({
+                "title": title,
+                "url": full_url,
+                "summary": ""
+            })
 
-    print("Scraped Articles:", articles)
+    print("Scraped Articles:", articles[:5])
     return articles
 
 
