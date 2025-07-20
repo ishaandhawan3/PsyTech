@@ -32,22 +32,29 @@ def setup_database():
 
 def scrape_parentcircle():
     url = "https://www.parentcircle.com/"
-    response = requests.get(url)
+    headers = {
+        "User-Agent": "Mozilla/5.0"
+    }
+    response = requests.get(url, headers=headers)
     soup = BeautifulSoup(response.text, "html.parser")
     articles = []
 
-    for item in soup.select("a[href*='/article/']")[:10]:
-        link = item.get("href")
-        title = item.get_text(strip=True)
-        full_url = link if link.startswith("http") else f"https://www.parentcircle.com{link}"
-        if title and link:
-            articles.append({
-                "title": title,
-                "url": full_url,
-                "summary": ""
-            })
+    # Try multiple selectors based on observed structure
+    for item in soup.find_all("a", href=True):
+        href = item["href"]
+        if "/article/" in href:
+            title = item.get_text(strip=True)
+            full_url = href if href.startswith("http") else f"https://www.parentcircle.com{href}"
+            if title:
+                articles.append({
+                    "title": title,
+                    "url": full_url,
+                    "summary": ""
+                })
+
     print("Scraped Articles:", articles)
     return articles
+
 
 def store_resources(resources):
     conn = get_db_connection()
