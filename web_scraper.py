@@ -6,7 +6,7 @@ import os
 # Read from Streamlit secrets or environment variables
 DB_CONFIG = {
     "host": os.getenv("DB_HOST"),
-    "port": os.getenv("DB_PORT"),
+    "port": 5432,
     "dbname": os.getenv("DB_NAME"),
     "user": os.getenv("DB_USER"),
     "password": os.getenv("DB_PASSWORD"),
