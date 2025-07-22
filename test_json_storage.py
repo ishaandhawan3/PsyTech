@@ -14,7 +14,7 @@ backend_path = Path(__file__).parent / "backend"
 sys.path.append(str(backend_path))
 
 # Import JSON storage components
-from storage.json_storage import get_json_storage
+from backend.storage.json_storage import get_json_storage
 from frontend.utils.json_database_adapter import (
     init_database, 
     save_user_profile, 
@@ -187,7 +187,7 @@ def main():
     
     # Initialize storage with optional base path
     if args.base_path:
-        from storage.json_storage import get_json_storage
+        from backend.storage.json_storage import get_json_storage
         get_json_storage(args.base_path)
     
     # Run tests
