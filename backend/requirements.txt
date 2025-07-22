@@ -1,0 +1,12 @@
+# Core dependencies
+pyyaml>=6.0.0        # YAML configuration
+
+# Data processing
+pandas>=2.0.0        # Data manipulation for inspector
+numpy>=1.24.0        # Numerical operations
+
+# S3 support (optional)
+boto3    # AWS SDK for S3 integration
+
+# Visualization
+plotly>=5.15.0       # Interactive visualizations for inspector

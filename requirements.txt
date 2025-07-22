@@ -1,9 +1,19 @@
-streamlit
-pandas
-google-generativeai
-requests
-beautifulsoup4
-psycopg2-binary
-selenium
-bs4
-webdriver-manager
+# Core dependencies
+streamlit>=1.22.0     # Web application framework
+pyyaml>=6.0.0         # YAML configuration
+
+# Data processing
+pandas>=2.0.0         # Data manipulation
+numpy>=1.24.0         # Numerical operations
+
+# Visualization
+plotly>=5.15.0        # Interactive visualizations
+
+# S3 support (optional)
+boto3                 # AWS SDK for S3 integration
+
+# Date and time handling
+python-dateutil>=2.8.2  # Date utilities
+
+# Utilities
+uuid>=1.30            # UUID generation for session IDs
